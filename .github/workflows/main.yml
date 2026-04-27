@@ -62,11 +62,18 @@ jobs:
             ENABLE_BITCODE=NO
 
       - name: Find app bundle
-        run: find "$RUNNER_TEMP/burmalda.xcarchive" -name "*.app" -type d
+        run: |
+          echo "=== archive structure ==="
+          find "$RUNNER_TEMP/burmalda.xcarchive" | head -50
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/burmalda.xcarchive" -name "*.app" -type d | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/burmalda.xcarchive" -name "*.app" | head -1)
+          echo "APP_PATH: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: .app not found in archive"
+            exit 1
+          fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -qr burmalda-unsigned.ipa Payload
