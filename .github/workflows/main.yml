@@ -35,35 +35,35 @@ jobs:
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Free disk space
+      - name: Bundle JavaScript
         run: |
-          df -h
-          rm -rf ~/Library/Developer/Xcode/DerivedData
-          df -h
+          mkdir -p ios/assets
+          node node_modules/.bin/react-native bundle \
+            --platform ios \
+            --dev false \
+            --entry-file node_modules/expo-router/entry.js \
+            --bundle-output ios/main.jsbundle \
+            --assets-dest ios/assets \
+            --reset-cache
 
-      - name: Install xcpretty
-        run: gem install xcpretty --no-document
+      - name: Free disk space
+        run: rm -rf ~/Library/Developer/Xcode/DerivedData
 
       - name: Build unsigned app
         run: |
           WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
-          set -o pipefail
           xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            -destination "generic/platform=iOS" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            PROVISIONING_PROFILE="" \
-            DEVELOPMENT_TEAM="" \
-            ENABLE_BITCODE=NO \
-            2>&1 | xcpretty --color
+            SKIP_BUNDLING=YES
 
       - name: Package IPA
         run: |
