@@ -43,6 +43,7 @@ jobs:
           WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
+          set -o pipefail
           xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -56,16 +57,14 @@ jobs:
             PROVISIONING_PROFILE="" \
             DEVELOPMENT_TEAM="" \
             ENABLE_BITCODE=NO \
-            > /tmp/xcodebuild.log 2>&1
-          EXIT_CODE=$?
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "=== ERRORS ==="
-            grep " error:" /tmp/xcodebuild.log | grep -v "note:" | tail -40
-            echo "=== LAST 20 LINES ==="
-            tail -20 /tmp/xcodebuild.log
-            exit 1
-          fi
-          echo "BUILD SUCCEEDED"
+            2>&1 | tee /tmp/xcodebuild.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: /tmp/xcodebuild.log
 
       - name: Package IPA
         run: |
