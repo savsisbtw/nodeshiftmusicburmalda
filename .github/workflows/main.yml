@@ -35,17 +35,6 @@ jobs:
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Bundle JavaScript
-        run: |
-          mkdir -p ios/assets
-          node node_modules/.bin/react-native bundle \
-            --platform ios \
-            --dev false \
-            --entry-file node_modules/expo-router/entry.js \
-            --bundle-output ios/main.jsbundle \
-            --assets-dest ios/assets \
-            --reset-cache
-
       - name: Free disk space
         run: rm -rf ~/Library/Developer/Xcode/DerivedData
 
@@ -62,8 +51,7 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            SKIP_BUNDLING=YES
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Package IPA
         run: |
