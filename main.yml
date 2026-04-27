@@ -1,0 +1,56 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Expo prebuild
+        run: npx expo prebuild --platform ios --clean
+        env:
+          EXPO_NO_DOTENV: 1
+
+      - name: Build unsigned archive
+        run: |
+          xcodebuild archive \
+            -workspace "ios/Burmalda Music.xcworkspace" \
+            -scheme "Burmalda Music" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/burmalda.xcarchive" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO \
+            | xcpretty || true
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -r "$RUNNER_TEMP/burmalda.xcarchive/Products/Applications/"*.app Payload/
+          zip -qr burmalda-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: burmalda-unsigned-ipa
+          path: burmalda-unsigned.ipa
+          retention-days: 30

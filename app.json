@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Burmalda Music",
+    "slug": "burmalda-music",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "space.nodeshift.burmalda",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "Не используется",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["burmalda"]
+          }
+        ]
+      }
+    },
+    "scheme": "burmalda",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-updates",
+        {
+          "username": "nodeshift"
+        }
+      ]
+    ],
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "url": "https://nodeshift.space/api/ios/updates"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "apiBase": "https://music.nodeshift.space",
+      "cloudClientId": "nsc_A5zi4cZ103aYJGcNTG1bERXV1YCAQW_U",
+      "eas": {}
+
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
