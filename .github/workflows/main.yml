@@ -26,20 +26,17 @@ jobs:
 
       - name: Fix PNG assets
         run: |
-          find assets -name "*.png" 2>/dev/null | while read f; do
+          find assets -name "*.png" | while read f; do
             sips -s format png "$f" --out "$f"
-          done || true
+          done
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Install CocoaPods dependencies
-        run: |
-          cd ios
-          pod install --repo-update
-          cd ..
+      - name: Pod install
+        run: cd ios && pod install
 
       - name: Build unsigned app
         run: |
@@ -51,17 +48,36 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            ENABLE_BITCODE=NO
+            PROVISIONING_PROFILE="" \
+            DEVELOPMENT_TEAM="" \
+            ENABLE_BITCODE=NO \
+            > /tmp/xcodebuild.log 2>&1
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "=== ERRORS ==="
+            grep " error:" /tmp/xcodebuild.log | grep -v "note:" | tail -40
+            echo "=== LAST 20 LINES ==="
+            tail -20 /tmp/xcodebuild.log
+            exit 1
+          fi
+          echo "BUILD SUCCEEDED"
 
       - name: Package IPA
         run: |
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d 2>/dev/null | grep -v "\.xctest" | head -1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find /Users/runner -maxdepth 8 -name "*.app" -type d 2>/dev/null | grep -v "\.xctest" | grep -v "Xcode.app" | grep -v "CoreSimulator" | grep -v "node_modules" | grep -v "Cellar" | head -1)
+            APP_PATH=$(find /Users/runner -maxdepth 8 -name "*.app" -type d 2>/dev/null \
+              | grep -v "\.xctest" \
+              | grep -v "Xcode.app" \
+              | grep -v "CoreSimulator" \
+              | grep -v "node_modules" \
+              | grep -v "Cellar" \
+              | head -1)
           fi
           echo "APP_PATH: $APP_PATH"
           if [ -z "$APP_PATH" ]; then echo "ERROR: .app not found"; exit 1; fi
