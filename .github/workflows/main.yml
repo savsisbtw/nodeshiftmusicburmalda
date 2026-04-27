@@ -35,45 +35,26 @@ jobs:
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Find workspace and scheme
-        run: |
-          echo "=== ios/ contents ==="
-          ls ios/
-          echo "=== workspaces ==="
-          find ios -name "*.xcworkspace" -type d
-          echo "=== schemes ==="
-          find ios -name "*.xcworkspace" -type d -exec xcodebuild -list -workspace {} \; 2>/dev/null || true
-
-      - name: Build unsigned archive
+      - name: Build unsigned app
         run: |
           WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | grep -A5 "Schemes:" | grep -v "Schemes:" | head -1 | xargs)
-          echo "Using workspace: $WORKSPACE"
-          echo "Using scheme: $SCHEME"
-          xcodebuild archive \
+          echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
+          xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath "$RUNNER_TEMP/burmalda.xcarchive" \
-            CODE_SIGNING_REQUIRED=NO \
+            CONFIGURATION_BUILD_DIR="$RUNNER_TEMP/build" \
             CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_BITCODE=NO
 
-      - name: Find app bundle
-        run: |
-          echo "=== archive structure ==="
-          find "$RUNNER_TEMP/burmalda.xcarchive" | head -50
-
       - name: Package IPA
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/burmalda.xcarchive" -name "*.app" | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/build" -name "*.app" -type d | grep -v "\.xctest" | head -1)
           echo "APP_PATH: $APP_PATH"
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: .app not found in archive"
-            exit 1
-          fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -qr burmalda-unsigned.ipa Payload
