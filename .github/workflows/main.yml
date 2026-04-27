@@ -45,7 +45,7 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            CONFIGURATION_BUILD_DIR="$RUNNER_TEMP/build" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -53,7 +53,10 @@ jobs:
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/build" -name "*.app" -type d | grep -v "\.xctest" | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | grep -v "simulator" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -type d | grep -v "\.xctest" | grep -v "simulator" | head -1)
+          fi
           echo "APP_PATH: $APP_PATH"
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
