@@ -1,0 +1,74 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Fix permissions
+        run: chmod -R +x node_modules/.bin/
+
+      - name: Expo prebuild
+        run: npx expo prebuild --platform ios --clean
+        env:
+          EXPO_NO_DOTENV: 1
+
+      - name: Find workspace and scheme
+        run: |
+          echo "=== ios/ contents ==="
+          ls ios/
+          echo "=== workspaces ==="
+          find ios -name "*.xcworkspace" -type d
+          echo "=== schemes ==="
+          find ios -name "*.xcworkspace" -type d -exec xcodebuild -list -workspace {} \; 2>/dev/null || true
+
+      - name: Build unsigned archive
+        run: |
+          WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
+          SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | grep -A5 "Schemes:" | grep -v "Schemes:" | head -1 | xargs)
+          echo "Using workspace: $WORKSPACE"
+          echo "Using scheme: $SCHEME"
+          xcodebuild archive \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/burmalda.xcarchive" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO
+
+      - name: Find app bundle
+        run: find "$RUNNER_TEMP/burmalda.xcarchive" -name "*.app" -type d
+
+      - name: Package IPA
+        run: |
+          APP_PATH=$(find "$RUNNER_TEMP/burmalda.xcarchive" -name "*.app" -type d | head -1)
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -qr burmalda-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: burmalda-unsigned-ipa
+          path: burmalda-unsigned.ipa
+          retention-days: 30
