@@ -24,6 +24,12 @@ jobs:
       - name: Fix permissions
         run: chmod -R +x node_modules/.bin/
 
+      - name: Fix PNG assets
+        run: |
+          find assets -name "*.png" | while read f; do
+            sips -s format png "$f" --out "$f"
+          done
+
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean
         env:
