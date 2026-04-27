@@ -35,8 +35,14 @@ jobs:
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Pod install
-        run: cd ios && pod install
+      - name: Free disk space
+        run: |
+          df -h
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          df -h
+
+      - name: Install xcpretty
+        run: gem install xcpretty --no-document
 
       - name: Build unsigned app
         run: |
@@ -57,14 +63,7 @@ jobs:
             PROVISIONING_PROFILE="" \
             DEVELOPMENT_TEAM="" \
             ENABLE_BITCODE=NO \
-            2>&1 | tee /tmp/xcodebuild.log
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcodebuild-log
-          path: /tmp/xcodebuild.log
+            2>&1 | xcpretty --color
 
       - name: Package IPA
         run: |
