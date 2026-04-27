@@ -26,14 +26,20 @@ jobs:
 
       - name: Fix PNG assets
         run: |
-          find assets -name "*.png" | while read f; do
+          find assets -name "*.png" 2>/dev/null | while read f; do
             sips -s format png "$f" --out "$f"
-          done
+          done || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
 
       - name: Build unsigned app
         run: |
@@ -50,15 +56,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_BITCODE=NO
-
-      - name: Locate app
-        run: |
-          echo "=== Xcode default DerivedData ==="
-          find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null | grep -v "\.xctest" || echo "nothing"
-          echo "=== RUNNER_TEMP ==="
-          find "$RUNNER_TEMP" -name "*.app" -type d 2>/dev/null | grep -v "\.xctest" || echo "nothing"
-          echo "=== runner home ==="
-          find /Users/runner -maxdepth 8 -name "*.app" -type d 2>/dev/null | grep -v "\.xctest" | grep -v "Xcode.app" | grep -v "CoreSimulator" | grep -v "node_modules" | grep -v "Cellar" || echo "nothing"
 
       - name: Package IPA
         run: |
