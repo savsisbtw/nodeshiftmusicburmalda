@@ -17,12 +17,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Кэширование убрано, так как у тебя отсутствует lock-файл
 
       - name: Install dependencies
         run: |
+          # Устанавливаем всё с игнорированием конфликтов
           npm install --legacy-peer-deps
-          npm install react-native-svg --legacy-peer-deps
+          # Принудительно переустанавливаем проблемный плеер и svg
+          npm install react-native-track-player react-native-svg --legacy-peer-deps --force
 
       - name: Fix PNG assets
         run: |
