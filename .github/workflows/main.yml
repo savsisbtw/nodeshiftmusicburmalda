@@ -13,25 +13,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 18
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Node 18 менее капризна к импортам
+          node-version: '20'
 
-      - name: Install dependencies
+      - name: Clean and Install
         run: |
-          rm -rf node_modules
+          rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
-      - name: Patch Broken Library (The Fix)
+      - name: Patch Track Player (Config Plugin Fix)
         run: |
-          # Этот шаг исправляет ошибку импорта в самом плеере
-          # Мы просто добавляем .js там, где его забыли разработчики библиотеки
-          FILE="node_modules/react-native-track-player/lib/src/index.js"
-          if [ -f "$FILE" ]; then
-            sed -i '' "s/from '.\/trackPlayer'/from '.\/trackPlayer.js'/g" "$FILE"
-            echo "Patch applied to $FILE"
+          # Фиксим основной вход плагина, если он есть
+          PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
+          if [ -f "$PLUGIN_PATH" ]; then
+            echo "Patching Config Plugin..."
+            # Заменяем импорты на реквайры, чтобы Node не ныла
+            sed -i '' "s/import/const/g" "$PLUGIN_PATH" || true
+            sed -i '' "s/export default/module.exports =/g" "$PLUGIN_PATH" || true
+          fi
+          
+          # Фиксим index.js, который вызывал ошибку ранее
+          INDEX_PATH="node_modules/react-native-track-player/lib/src/index.js"
+          if [ -f "$INDEX_PATH" ]; then
+            sed -i '' "s/from '.\/trackPlayer'/from '.\/trackPlayer.js'/g" "$INDEX_PATH" || true
           fi
 
       - name: Fix Git state
@@ -39,7 +46,7 @@ jobs:
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: fix dirty tree and patches" || true
+          git commit -m "ci: fix plugins" || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
