@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build iOS IPA (Brute Force Edition)
 
 on:
   push:
@@ -13,39 +13,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node 18
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
 
-      - name: Install dependencies
+      - name: Kill and Reinstall Dependencies
         run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          # Ставим всё с игнором конфликтов
           npm install --legacy-peer-deps
-          # Используем expo install, чтобы он сам подобрал рабочую версию
-          npx expo install react-native-track-player react-native-svg -- --legacy-peer-deps
+          # Принудительно вбиваем костыль в проблемные пакеты
+          npm install react-native-track-player react-native-svg --legacy-peer-deps --force
 
-      - name: Fix Git state
+      - name: Pre-build Git Cleanup
         run: |
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: cleanup before prebuild" || true
+          git commit -m "ci: silent cleanup" || true
 
-      - name: Fix PNG assets
+      - name: Expo Prebuild
         run: |
-          if [ -d "assets" ]; then
-            find assets -name "*.png" -exec sips -s format png {} --out {} \; 2>/dev/null || true
-          fi
-
-      - name: Expo prebuild
-        run: npx expo prebuild --platform ios --clean
+          # Используем npx expo install для проверки совместимости перед пребилдом
+          npx expo install --check
+          npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Build unsigned app
+      - name: Build Unsigned IPA
         run: |
           WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          
           xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -54,20 +55,25 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-      - name: Package IPA
+      - name: Export IPA
         run: |
+          # Ищем скомпилированный .app и пакуем его
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
-          if [ -z "$APP_PATH" ]; then echo "ERROR: .app not found"; exit 1; fi
+          if [ -z "$APP_PATH" ]; then
+            echo "Failed to find .app file"
+            exit 1
+          fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -qr burmalda-unsigned.ipa Payload
           rm -rf Payload
 
-      - name: Upload IPA artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: burmalda-unsigned-ipa
           path: burmalda-unsigned.ipa
-          retention-days: 30
+          retention-days: 7
