@@ -18,8 +18,17 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup Ruby for CocoaPods
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: Install CocoaPods
+        run: gem install cocoapods
+
       - name: Install dependencies
-        run: npm install react-native-svg && npm install
+        run: npm install
 
       - name: Fix permissions
         run: chmod -R +x node_modules/.bin/
@@ -34,6 +43,12 @@ jobs:
         run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
+
+      - name: Install Pods
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
 
       - name: Free disk space
         run: rm -rf ~/Library/Developer/Xcode/DerivedData
