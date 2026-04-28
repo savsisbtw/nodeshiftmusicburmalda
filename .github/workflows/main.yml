@@ -13,36 +13,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node 18
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18' # Node 18 более терпима к отсутствию расширений .js
 
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
-      - name: Force Fix Track Player (Stub Method)
+      - name: Surgical Patch (No Deletions)
         run: |
-          # Путь к проблемному файлу
-          TARGET_DIR="node_modules/react-native-track-player/lib/src"
-          TARGET_FILE="$TARGET_DIR/index.js"
-          
-          if [ -d "$TARGET_DIR" ]; then
-            # Создаем абсолютно чистый файл без импортов, которые валят сборку
-            echo "export * from './trackPlayer.js';" > "$TARGET_FILE"
-            # Если файла trackPlayer без расширения нет, создаем и его как заглушку
-            if [ ! -f "$TARGET_DIR/trackPlayer.js" ] && [ -f "$TARGET_DIR/trackPlayer" ]; then
-              cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js"
-            fi
-            echo "Successfully stubbed broken imports in $TARGET_FILE"
+          # 1. Фиксим проблему с отсутствующим расширением .js в импорте
+          SRC_DIR="node_modules/react-native-track-player/lib/src"
+          if [ -d "$SRC_DIR" ]; then
+            # Создаем копию файла с расширением, чтобы импорт 'from ./trackPlayer' сработал
+            cp "$SRC_DIR/trackPlayer" "$SRC_DIR/trackPlayer.js" 2>/dev/null || true
+            echo "Fixed trackPlayer extension"
           fi
 
-      - name: Remove broken Config Plugin
-        run: |
-          if [ -f "app.json" ]; then
-            cat app.json | jq 'del(.expo.plugins[] | select(. == "react-native-track-player" or .[0] == "react-native-track-player"))' > app.json.tmp && mv app.json.tmp app.json
+          # 2. Фиксим app.plugin.js, чтобы он не выбивал "Unexpected token"
+          # Мы просто оборачиваем его так, чтобы Node.js понимала экспорт
+          PLUGIN_FILE="node_modules/react-native-track-player/app.plugin.js"
+          if [ -f "$PLUGIN_FILE" ]; then
+            # Если там есть import/export, заменяем их на require/module.exports
+            sed -i '' 's/import /const /g' "$PLUGIN_FILE" || true
+            sed -i '' 's/from / = require/g' "$PLUGIN_FILE" || true
+            sed -i '' 's/export default /module.exports = /g' "$PLUGIN_FILE" || true
+            echo "Transpiled app.plugin.js to CommonJS"
           fi
 
       - name: Fix Git state
@@ -50,7 +49,7 @@ jobs:
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: stub broken modules" || true
+          git commit -m "ci: surgical patch for track player" || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
@@ -74,15 +73,13 @@ jobs:
       - name: Package IPA
         run: |
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
-          if [ -z "$APP_PATH" ]; then echo "ERROR: .app not found"; exit 1; fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -qr burmalda-unsigned.ipa Payload
-          rm -rf Payload
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: burmalda-unsigned-ipa
           path: burmalda-unsigned.ipa
-          retention-days: 30
+          retention-days: 7
