@@ -18,27 +18,17 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Clean and Install
+      - name: Install dependencies
         run: |
-          rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
-      - name: Patch Track Player (Config Plugin Fix)
+      - name: Remove broken Config Plugin
         run: |
-          # Фиксим основной вход плагина, если он есть
-          PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
-          if [ -f "$PLUGIN_PATH" ]; then
-            echo "Patching Config Plugin..."
-            # Заменяем импорты на реквайры, чтобы Node не ныла
-            sed -i '' "s/import/const/g" "$PLUGIN_PATH" || true
-            sed -i '' "s/export default/module.exports =/g" "$PLUGIN_PATH" || true
-          fi
-          
-          # Фиксим index.js, который вызывал ошибку ранее
-          INDEX_PATH="node_modules/react-native-track-player/lib/src/index.js"
-          if [ -f "$INDEX_PATH" ]; then
-            sed -i '' "s/from '.\/trackPlayer'/from '.\/trackPlayer.js'/g" "$INDEX_PATH" || true
+          # Вырезаем плагин из app.json или app.config.json, чтобы Expo не пытался его загрузить
+          if [ -f "app.json" ]; then
+            cat app.json | jq 'del(.expo.plugins[] | select(. == "react-native-track-player" or .[0] == "react-native-track-player"))' > app.json.tmp && mv app.json.tmp app.json
+            echo "Removed react-native-track-player from app.json plugins"
           fi
 
       - name: Fix Git state
@@ -46,7 +36,7 @@ jobs:
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: fix plugins" || true
+          git commit -m "ci: remove broken plugin" || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
