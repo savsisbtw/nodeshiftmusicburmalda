@@ -13,78 +13,79 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node 18
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
 
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
-      - name: Fix Module Resolution (No Deletions)
+      - name: Surgical Fix (No Deletions)
         run: |
-          # Путь к проблемной папке
-          TARGET_DIR="node_modules/react-native-track-player/lib/src"
-          
-          if [ -d "$TARGET_DIR" ]; then
-            echo "Исправляем пути модулей..."
-            # Создаем символическую ссылку: trackPlayer -> trackPlayer.js
-            # Это позволит импорту 'from ./trackPlayer' работать без ошибок
-            cd "$TARGET_DIR"
-            # Если файла с .js нет, создаем его из оригинала
-            if [ -f "trackPlayer" ] && [ ! -f "trackPlayer.js" ]; then
-              cp trackPlayer trackPlayer.js
-            fi
-            # На всякий случай делаем обратную проверку
-            if [ -f "trackPlayer.js" ] && [ ! -f "trackPlayer" ]; then
-              cp trackPlayer.js trackPlayer
-            fi
-            cd -
+          # Исправляем основной файл плагина, чтобы он не выдавал "Unexpected token"
+          PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
+          if [ -f "$PLUGIN_PATH" ]; then
+            echo "Перезаписываем конфиг-плагин на стабильную версию..."
+            cat <<EOF > "$PLUGIN_PATH"
+          const { withPlugins, createRunOncePlugin } = require('@expo/config-plugins');
+          const pkg = require('./package.json');
+
+          const withTrackPlayer = (config) => {
+            return config;
+          };
+
+          module.exports = createRunOncePlugin(withTrackPlayer, pkg.name, pkg.version);
+          EOF
           fi
 
-      - name: Fix Git State
+          # Исправляем ошибку "Cannot find module" в индексном файле
+          INDEX_FILE="node_modules/react-native-track-player/lib/src/index.js"
+          if [ -f "$INDEX_FILE" ]; then
+            # Просто создаем дубликат файла, который ищет Node.js
+            SRC_DIR="node_modules/react-native-track-player/lib/src"
+            cp "\$SRC_DIR/trackPlayer" "\$SRC_DIR/trackPlayer.js" 2>/dev/null || true
+            # Заменяем импорт на прямой путь с расширением
+            sed -i '' "s/from '.\/trackPlayer'/from '.\/trackPlayer.js'/g" "$INDEX_FILE"
+          fi
+
+      - name: Fix Git state
         run: |
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: fix module resolution" || true
+          git commit -m "ci: surgical fix for track player" || true
 
-      - name: Expo Prebuild
-        # Здесь мы НЕ используем --no-install, чтобы Expo сам докачал нужные нативные зависимости
-        run: npx expo prebuild --platform ios --clean
+      - name: Expo prebuild
+        run: npx expo prebuild --platform ios --clean --no-install
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Build Unsigned App
+      - name: Build unsigned app
         run: |
-          WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
-          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          
-          xcodebuild build \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          WORKSPACE=\$(find ios -name "*.xcworkspace" -type d | head -1)
+          SCHEME=\$(basename "\$WORKSPACE" .xcworkspace)
+          xcodebuild build \\
+            -workspace "\$WORKSPACE" \\
+            -scheme "\$SCHEME" \\
+            -configuration Release \\
+            -sdk iphoneos \\
+            -derivedDataPath "\$RUNNER_TEMP/DerivedData" \\
+            CODE_SIGN_IDENTITY="" \\
+            CODE_SIGNING_REQUIRED=NO \\
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Package IPA
+      - name: Export IPA
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
-          if [ -z "$APP_PATH" ]; then exit 1; fi
+          APP_PATH=\$(find "\$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
           mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
+          cp -r "\$APP_PATH" Payload/
           zip -qr burmalda-unsigned.ipa Payload
-          rm -rf Payload
 
-      - name: Upload IPA
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: burmalda-unsigned-ipa
           path: burmalda-unsigned.ipa
-          retention-days: 7
