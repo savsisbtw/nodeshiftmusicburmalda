@@ -17,30 +17,37 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Setup Ruby for CocoaPods
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
-          bundler-cache: false
+          bundler-cache: true
 
       - name: Install CocoaPods
         run: gem install cocoapods
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Clean react-native-track-player cache
+        run: |
+          rm -rf node_modules/react-native-track-player
+          npm install react-native-track-player@latest
 
       - name: Fix permissions
         run: chmod -R +x node_modules/.bin/
 
       - name: Fix PNG assets
         run: |
-          find assets -name "*.png" | while read f; do
+          find assets -name "*.png" 2>/dev/null | while read f; do
             sips -s format png "$f" --out "$f"
-          done
+          done || true
 
       - name: Expo prebuild
-        run: npx expo prebuild --platform ios --clean
+        run: |
+          npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
 
