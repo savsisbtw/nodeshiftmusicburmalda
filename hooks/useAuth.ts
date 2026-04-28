@@ -11,7 +11,7 @@ export function useBootAuth() {
         const token = await getAccessToken();
         if (!token) { setReady(true); return; }
         const me = await getMe();
-        setUser(me);
+        if (me) setUser(me);
       } catch {
         // ignore
       } finally {
