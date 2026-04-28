@@ -53,7 +53,12 @@ jobs:
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: rewrite broken plugin" || true
+          git commit -m "ci: rewrite broken plugin and fix assets" || true
+
+      - name: Fix Corrupted PNG Assets
+        run: |
+          # Насильно конвертируем все PNG через sips, чтобы убрать нестандартные фильтры
+          find . -type f -iname "*.png" -exec sips -s format png {} --out {} \;
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
