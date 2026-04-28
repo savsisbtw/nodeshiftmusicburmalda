@@ -31,6 +31,7 @@ function useOTAUpdates() {
           await Updates.fetchUpdateAsync();
           await Updates.reloadAsync();
         }
+        // eslint-disable-next-line no-empty
       } catch {
         // silent fail
       }

@@ -1,15 +1,20 @@
 export const Colors = {
   bg:       '#0a0a0a',
-  surface:  '#141414',
-  elevated: '#1e1e1e',
-  border:   '#2a2a2a',
-  green:    '#1db954',
-  greenDim: '#168f3f',
+  surface:  '#111111',
+  elevated: '#1a1a1a',
+  subtle:   '#2a2a2a',
+  border:   'rgba(255,255,255,0.07)',
+  border2:  'rgba(255,255,255,0.14)',
+  accent:   '#4F86F5',
+  accentDim:'rgba(79,134,245,0.18)',
+  pink:     '#e84393',
   text:     '#f0f0f0',
   text2:    '#888888',
   text3:    '#444444',
   red:      '#e84040',
   white:    '#ffffff',
+  // legacy alias
+  green:    '#4F86F5',
 };
 
 export const Spacing = {
@@ -23,21 +28,21 @@ export const Spacing = {
 
 export const Radius = {
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  md: 10,
+  lg: 14,
+  xl: 16,
   full: 9999,
 };
 
 export const Font = {
   xs:   11,
   sm:   13,
-  md:   15,
+  md:   14,
   lg:   17,
   xl:   20,
   xxl:  26,
   xxxl: 32,
 };
 
-export const TAB_BAR_HEIGHT = 88;
+export const TAB_BAR_HEIGHT = 54;
 export const MINI_PLAYER_HEIGHT = 64;
