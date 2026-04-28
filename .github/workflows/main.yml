@@ -17,32 +17,28 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install react-native-svg && npm install
-
-      - name: Fix permissions
-        run: chmod -R +x node_modules/.bin/
+        run: |
+          npm install --legacy-peer-deps
+          # Если react-native-svg критичен и его нет в package.json, лучше добавь его туда.
+          # Но если нужно здесь:
+          npm install react-native-svg --legacy-peer-deps
 
       - name: Fix PNG assets
         run: |
-          find assets -name "*.png" | while read f; do
-            sips -s format png "$f" --out "$f"
-          done
+          find assets -name "*.png" -exec sips -s format png {} --out {} \; 2>/dev/null || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Free disk space
-        run: rm -rf ~/Library/Developer/Xcode/DerivedData
-
       - name: Build unsigned app
         run: |
           WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          echo "Workspace: $WORKSPACE | Scheme: $SCHEME"
           xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -55,17 +51,7 @@ jobs:
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d 2>/dev/null | grep -v "\.xctest" | head -1)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find /Users/runner -maxdepth 8 -name "*.app" -type d 2>/dev/null \
-              | grep -v "\.xctest" \
-              | grep -v "Xcode.app" \
-              | grep -v "CoreSimulator" \
-              | grep -v "node_modules" \
-              | grep -v "Cellar" \
-              | head -1)
-          fi
-          echo "APP_PATH: $APP_PATH"
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
           if [ -z "$APP_PATH" ]; then echo "ERROR: .app not found"; exit 1; fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
