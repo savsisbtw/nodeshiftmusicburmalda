@@ -64,13 +64,13 @@ jobs:
 
       - name: Build unsigned app
         run: |
-          # Находим путь к .xcworkspace, игнорируя вложенные папки xcodeproj
-          WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
-          # Извлекаем имя схемы (имя файла без расширения)
+          # Ищем воркспейс в папке ios
+          WORKSPACE_PATH=$(ls ios/*.xcworkspace | head -1)
+          # Берем имя проекта из конфига или папки
           SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
           
-          echo "Building workspace: $WORKSPACE_PATH"
-          echo "Detected scheme: $SCHEME_NAME"
+          echo "Workspace found: $WORKSPACE_PATH"
+          echo "Scheme detected: $SCHEME_NAME"
           
           xcodebuild build \
             -workspace "$WORKSPACE_PATH" \
@@ -95,3 +95,4 @@ jobs:
         with:
           name: burmalda-unsigned-ipa
           path: burmalda-unsigned.ipa
+          retention-days: 1
