@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import Svg, { Path, Circle, Line, Polyline } from 'react-native-svg';
@@ -18,7 +18,12 @@ export default function TabsLayout() {
     }
   }, [user, ready]);
 
-  if (!ready || !user) return null;
+  if (!ready) return (
+    <View style={{ flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color="#1db954" />
+    </View>
+  );
+  if (!user) return null;
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.bg }}>
