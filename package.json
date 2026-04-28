@@ -1,7 +1,7 @@
 {
   "name": "burmalda-music",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "./index.js",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
@@ -12,7 +12,6 @@
   "dependencies": {
     "expo": "~51.0.28",
     "expo-router": "~3.5.23",
-    "expo-av": "~14.0.7",
     "expo-blur": "~13.0.2",
     "expo-constants": "~16.0.2",
     "expo-haptics": "~13.0.1",
@@ -31,7 +30,8 @@
     "react-native-screens": "3.31.1",
     "zustand": "^4.5.4",
     "@react-native-async-storage/async-storage": "1.23.1",
-    "@react-native-community/slider": "4.5.2"
+    "@react-native-community/slider": "4.5.2",
+    "react-native-track-player": "^4.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

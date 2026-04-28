@@ -29,6 +29,7 @@
     "scheme": "burmalda",
     "plugins": [
       "expo-router",
+      "react-native-track-player",
       [
         "expo-updates",
         {

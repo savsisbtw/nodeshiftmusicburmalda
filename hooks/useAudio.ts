@@ -1,96 +1,106 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import { useEffect } from 'react';
+import TrackPlayer, {
+  State,
+  Capability,
+  AppKilledPlaybackBehavior,
+  usePlaybackState,
+  useProgress,
+} from 'react-native-track-player';
 import { usePlayer } from '../store';
+import { coverUrl, Track } from '../services/api';
 
-let _sound: Audio.Sound | null = null;
+let _setupDone    = false;
+let _lastLoadedId: number | null = null;
 
-// Module-level singleton so the sound survives re-renders
-export async function getSound() { return _sound; }
-
-export function useAudio() {
-  const initialized = useRef(false);
-  const {
-    queue, index, playing,
-    setPlaying, setProgress, setDuration,
-    nextTrack, setIndex, repeat,
-  } = usePlayer();
-
-  const currentTrack = queue[index] ?? null;
-
-  // Init audio session once
-  useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    Audio.setAudioModeAsync({
-      staysActiveInBackground: true,
-      playsInSilentModeIOS:    true,
-      interruptionModeIOS:     1,
-      shouldDuckAndroid:       true,
+async function ensureSetup() {
+  if (_setupDone) return;
+  _setupDone = true;
+  try {
+    await TrackPlayer.setupPlayer({ minBuffer: 15, maxBuffer: 50, playBuffer: 2.5 });
+    await TrackPlayer.updateOptions({
+      android: {
+        appKilledPlaybackBehavior:
+          AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
+      },
+      capabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+        Capability.SeekTo,
+      ],
+      compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext],
     });
+  } catch (e: any) {
+    // Player already set up on hot reload — update options only
+    if (e?.message?.toLowerCase().includes('already')) {
+      _setupDone = true;
+      return;
+    }
+    _setupDone = false;
+    throw e;
+  }
+}
+
+// Load a track and start playing. Mutex prevents double-load on the same ID.
+export async function loadAndPlay(track: Track) {
+  if (_lastLoadedId === track.id) return;
+  _lastLoadedId = track.id;
+  try {
+    await TrackPlayer.reset();
+    await TrackPlayer.add({
+      id:       String(track.id),
+      url:      track.cdn_url2 || track.cdn_url,
+      title:    track.title,
+      artist:   track.artist,
+      artwork:  coverUrl(track.cover_url) ?? undefined,
+      duration: track.duration,
+    });
+    await TrackPlayer.play();
+  } catch (e) {
+    _lastLoadedId = null;
+    throw e;
+  }
+}
+
+export async function togglePlay() {
+  const { state } = await TrackPlayer.getPlaybackState();
+  if (state === State.Playing) await TrackPlayer.pause();
+  else await TrackPlayer.play();
+}
+
+export async function seekTo(seconds: number) {
+  await TrackPlayer.seekTo(seconds);
+}
+
+// Call ONCE from the root layout only
+export function useAudio() {
+  const { queue, index, setPlaying, setProgress, setDuration } = usePlayer();
+  const currentTrack  = queue[index] ?? null;
+  const playbackState = usePlaybackState();
+  const progress      = useProgress(500);
+
+  // One-time player setup
+  useEffect(() => {
+    ensureSetup().catch(console.error);
   }, []);
 
-  // Load new track whenever index/id changes
+  // Sync TrackPlayer progress → store
+  useEffect(() => {
+    setProgress(progress.position);
+    setDuration(progress.duration);
+  }, [progress.position, progress.duration]);
+
+  // Sync TrackPlayer playing state → store
+  useEffect(() => {
+    setPlaying(playbackState.state === State.Playing);
+  }, [playbackState.state]);
+
+  // Load new track when queue index changes
   useEffect(() => {
     if (!currentTrack) return;
-
-    const load = async () => {
-      // Unload previous
-      if (_sound) {
-        await _sound.stopAsync().catch(() => {});
-        await _sound.unloadAsync().catch(() => {});
-        _sound = null;
-      }
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: currentTrack.stream_url },
-        { shouldPlay: true, progressUpdateIntervalMillis: 500 },
-        (status: AVPlaybackStatus) => {
-          if (!status.isLoaded) return;
-          setProgress(status.positionMillis / 1000);
-          setDuration((status.durationMillis ?? 0) / 1000);
-          if (status.isPlaying !== usePlayer.getState().playing) {
-            setPlaying(status.isPlaying);
-          }
-          if (status.didJustFinish) {
-            const state = usePlayer.getState();
-            const ni    = state.nextTrack();
-            if (ni !== state.index || state.repeat === 2) {
-              setIndex(ni);
-            } else {
-              setPlaying(false);
-            }
-          }
-        },
-      );
-      _sound = sound;
-    };
-
-    load().catch(console.error);
+    loadAndPlay(currentTrack).catch(console.error);
   }, [currentTrack?.id]);
 
-  const togglePlay = useCallback(async () => {
-    if (!_sound) return;
-    const status = await _sound.getStatusAsync();
-    if (!status.isLoaded) return;
-    if (status.isPlaying) {
-      await _sound.pauseAsync();
-    } else {
-      await _sound.playAsync();
-    }
-  }, []);
-
-  const seek = useCallback(async (seconds: number) => {
-    if (!_sound) return;
-    await _sound.setPositionAsync(seconds * 1000);
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      _sound?.unloadAsync().catch(() => {});
-      _sound = null;
-    };
-  }, []);
-
-  return { togglePlay, seek };
+  return { togglePlay, seek: seekTo };
 }

@@ -44,5 +44,5 @@ export const Font = {
   xxxl: 32,
 };
 
-export const TAB_BAR_HEIGHT = 54;
+export const TAB_BAR_HEIGHT = 88;
 export const MINI_PLAYER_HEIGHT = 64;

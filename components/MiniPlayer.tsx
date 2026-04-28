@@ -8,15 +8,14 @@ import { PanGestureHandler } from 'react-native-gesture-handler';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import Svg, { Path, Rect } from 'react-native-svg';
-import { Colors, Font, Radius, MINI_PLAYER_HEIGHT, TAB_BAR_HEIGHT } from '../constants/theme';
+import Svg, { Path } from 'react-native-svg';
+import { Colors, Font, MINI_PLAYER_HEIGHT, TAB_BAR_HEIGHT } from '../constants/theme';
 import { usePlayer, useLikes } from '../store';
-import { useAudio } from '../hooks/useAudio';
+import { togglePlay, seekTo } from '../hooks/useAudio';
 import { coverUrl } from '../services/api';
 
 export default function MiniPlayer() {
   const { queue, index, playing, expanded, setExpanded, progress, duration } = usePlayer();
-  const { togglePlay } = useAudio();
   const { toggleLike, isLiked } = useLikes();
   const track = queue[index];
 
@@ -47,11 +46,6 @@ export default function MiniPlayer() {
     setExpanded(true);
   }, [setExpanded]);
 
-  const onPlayPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    togglePlay();
-  }, [togglePlay]);
-
   const onNext = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const ni = usePlayer.getState().nextTrack();
@@ -66,9 +60,9 @@ export default function MiniPlayer() {
 
   if (!track || expanded) return null;
 
-  const cover  = coverUrl(track.cover_url);
-  const liked  = isLiked(track.id);
-  const pct    = duration > 0 ? (progress / duration) * 100 : 0;
+  const cover = coverUrl(track.cover_url);
+  const liked = isLiked(track.id);
+  const pct   = duration > 0 ? (progress / duration) * 100 : 0;
 
   return (
     <PanGestureHandler onGestureEvent={gestureHandler}>
@@ -77,80 +71,41 @@ export default function MiniPlayer() {
         entering={FadeInDown.springify()}
         exiting={FadeOutDown.springify()}
       >
-        {/* Glass background */}
         <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, s.bgTint]} />
 
-        {/* Progress line at top */}
+        {/* Progress line */}
         <View style={s.progressBg}>
           <View style={[s.progressFill, { width: `${pct}%` as any }]} />
         </View>
 
-        {/* Content row */}
         <Pressable style={s.row} onPress={openPlayer} android_ripple={null}>
-          {/* Cover */}
           <Image
             source={cover ? { uri: cover } : require('../assets/placeholder.png')}
             style={s.cover}
             contentFit="cover"
             transition={200}
           />
-
-          {/* Info */}
           <View style={s.info}>
             <Text style={s.title} numberOfLines={1}>{track.title}</Text>
             <Text style={s.artist} numberOfLines={1}>{track.artist}</Text>
           </View>
-
-          {/* Controls */}
           <View style={s.controls}>
-            {/* Like */}
-            <Pressable
-              onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleLike(track.id); }}
-              hitSlop={10}
-              style={s.ctlBtn}
-            >
+            <Pressable onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleLike(track.id); }} hitSlop={10} style={s.ctlBtn}>
               <Svg width={18} height={18} viewBox="0 0 24 24" fill={liked ? Colors.pink : 'none'}>
-                <Path
-                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                  stroke={liked ? Colors.pink : Colors.text2}
-                  strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"
-                />
+                <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke={liked ? Colors.pink : Colors.text2} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
             </Pressable>
-
-            {/* Prev */}
-            <Pressable
-              onPress={(e) => { e.stopPropagation(); onPrev(); }}
-              hitSlop={10}
-              style={s.ctlBtn}
-            >
-              <Svg width={18} height={18} fill={Colors.text} viewBox="0 0 24 24">
-                <Path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
-              </Svg>
+            <Pressable onPress={(e) => { e.stopPropagation(); onPrev(); }} hitSlop={10} style={s.ctlBtn}>
+              <Svg width={18} height={18} fill={Colors.text} viewBox="0 0 24 24"><Path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></Svg>
             </Pressable>
-
-            {/* Play/Pause */}
-            <Pressable
-              onPress={(e) => { e.stopPropagation(); onPlayPress(); }}
-              hitSlop={10}
-              style={s.ctlBtn}
-            >
+            <Pressable onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); togglePlay(); }} hitSlop={10} style={s.ctlBtn}>
               {playing
                 ? <Svg width={18} height={18} viewBox="0 0 24 24" fill={Colors.text}><Path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></Svg>
-                : <Svg width={18} height={18} viewBox="0 0 24 24" fill={Colors.text}><Path d="M8 5v14l11-7z" /></Svg>
-              }
+                : <Svg width={18} height={18} viewBox="0 0 24 24" fill={Colors.text}><Path d="M8 5v14l11-7z" /></Svg>}
             </Pressable>
-
-            {/* Next */}
-            <Pressable
-              onPress={(e) => { e.stopPropagation(); onNext(); }}
-              hitSlop={10}
-              style={s.ctlBtn}
-            >
-              <Svg width={18} height={18} fill={Colors.text} viewBox="0 0 24 24">
-                <Path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z" />
-              </Svg>
+            <Pressable onPress={(e) => { e.stopPropagation(); onNext(); }} hitSlop={10} style={s.ctlBtn}>
+              <Svg width={18} height={18} fill={Colors.text} viewBox="0 0 24 24"><Path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z" /></Svg>
             </Pressable>
           </View>
         </Pressable>
@@ -160,7 +115,7 @@ export default function MiniPlayer() {
 }
 
 const s = StyleSheet.create({
-  wrap:        { position: 'absolute', left: 0, right: 0, height: MINI_PLAYER_HEIGHT, overflow: 'hidden', borderRadius: '14px 14px 0 0' as any, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
+  wrap:        { position: 'absolute', left: 0, right: 0, height: MINI_PLAYER_HEIGHT, overflow: 'hidden', borderTopLeftRadius: 14, borderTopRightRadius: 14 },
   bgTint:      { backgroundColor: 'rgba(10,10,10,0.4)' },
   progressBg:  { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(255,255,255,0.07)', zIndex: 2 },
   progressFill:{ height: 2, backgroundColor: Colors.accent },

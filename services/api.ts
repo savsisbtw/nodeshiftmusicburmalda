@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
-const BASE   = 'https://music.nodeshift.space';
-const CLOUD  = 'https://cloud.nodeshift.space';
+const BASE      = 'https://music.nodeshift.space';
+const CLOUD     = 'https://cloud.nodeshift.space';
 const CLIENT_ID = 'nsc_A5zi4cZ103aYJGcNTG1bERXV1YCAQW_U';
 const REDIRECT  = 'burmalda://auth/callback';
 
@@ -21,7 +21,7 @@ export async function clearTokens() {
 
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 
-async function apiFetch(path: string, opts: RequestInit = {}): Promise<Response> {
+export async function apiFetch(path: string, opts: RequestInit = {}): Promise<Response> {
   const token = await getAccessToken();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -54,31 +54,34 @@ export async function exchangeCode(code: string): Promise<{ access_token: string
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface Track {
-  id: number;
-  title: string;
-  artist: string;
-  duration: number;
-  cover_url: string | null;
-  stream_url: string;
-  album?: string;
-  plays?: number;
-  liked?: boolean;
+  id:         number;
+  title:      string;
+  artist:     string;
+  duration:   number;
+  cover_url:  string | null;
+  cdn_url:    string;
+  cdn_url2:   string;
+  filename:   string;
+  album?:     string;
+  play_count?: number;
+  source?:    string;
+  cdn_synced?: boolean;
 }
 
 export interface Album {
-  id: number;
-  title: string;
-  artist: string;
-  cover_url: string | null;
+  id:          number;
+  title:       string;
+  artist:      string;
+  cover_url:   string | null;
   track_count: number;
 }
 
 export interface User {
-  id: number;
-  email: string;
-  username: string | null;
+  id:         number;
+  email:      string;
+  username:   string | null;
   avatar_url: string | null;
-  plan: string;
+  plan:       string;
 }
 
 export interface Lyrics {
@@ -89,7 +92,7 @@ export interface Lyrics {
 // ── API calls ─────────────────────────────────────────────────────────────────
 
 export async function getTracks(): Promise<Track[]> {
-  const r = await apiFetch('/api/music/tracks');
+  const r = await apiFetch('/api/music/tracks?limit=200');
   if (!r.ok) return [];
   return r.json();
 }
@@ -97,19 +100,46 @@ export async function getTracks(): Promise<Track[]> {
 export async function getAlbums(): Promise<Album[]> {
   const r = await apiFetch('/api/music/albums');
   if (!r.ok) return [];
-  return r.json();
+  const data: Array<{ album: string; artist: string; count: number }> = await r.json();
+  return data.map((a, i) => ({
+    id:          i,
+    title:       a.album,
+    artist:      a.artist,
+    cover_url:   null,
+    track_count: a.count,
+  }));
 }
 
 export async function getMe(): Promise<User | null> {
-  const r = await apiFetch('/api/music/profile/me');
+  // Validate token
+  const r = await apiFetch('/api/auth/me');
   if (!r.ok) return null;
-  return r.json();
+  const auth = await r.json();
+
+  // Get music profile for username / avatar
+  const pr = await apiFetch('/api/music/profile/me');
+  const profile = pr.ok ? await pr.json() : {};
+
+  return {
+    id:         auth.id,
+    email:      auth.email,
+    username:   profile.username   || null,
+    avatar_url: profile.avatar_url || null,
+    plan:       'free', // merged with cached plan in useBootAuth
+  };
 }
 
 export async function searchTracks(q: string): Promise<Track[]> {
-  const r = await apiFetch(`/api/music/tracks?q=${encodeURIComponent(q)}`);
+  const r = await apiFetch('/api/music/tracks?limit=200');
   if (!r.ok) return [];
-  return r.json();
+  const all: Track[] = await r.json();
+  if (!q.trim()) return all;
+  const lq = q.toLowerCase();
+  return all.filter(t =>
+    t.title.toLowerCase().includes(lq) ||
+    t.artist.toLowerCase().includes(lq) ||
+    (t.album && t.album.toLowerCase().includes(lq))
+  );
 }
 
 export async function fetchLyrics(id: number): Promise<Lyrics | null> {
@@ -118,14 +148,15 @@ export async function fetchLyrics(id: number): Promise<Lyrics | null> {
   return r.json();
 }
 
-export function streamUrl(filename: string): string {
-  return `${BASE}/api/music/stream/${filename}`;
-}
-
-export function coverUrl(filename: string | null): string | null {
-  if (!filename) return null;
-  if (filename.startsWith('http')) return filename;
-  return `${BASE}/api/music/cover/${filename}`;
+// cover_url from the server is one of:
+//   - "https://cdn.nodeshift.space/music/xxx.jpg"  (full URL)
+//   - "/api/music/cover/xxx.jpg"                   (relative path)
+//   - "xxx.jpg"                                    (bare filename, legacy)
+export function coverUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  if (raw.startsWith('http')) return raw;
+  if (raw.startsWith('/')) return `${BASE}${raw}`;
+  return `${BASE}/api/music/cover/${raw}`;
 }
 
 // ── LRC parser ────────────────────────────────────────────────────────────────

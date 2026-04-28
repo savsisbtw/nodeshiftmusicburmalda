@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import Svg, { Path, Circle, Line, Polyline } from 'react-native-svg';
 import { Colors, TAB_BAR_HEIGHT } from '../../constants/theme';
 import { useAuth, usePlayer, useLikes } from '../../store';
+import { useAudio } from '../../hooks/useAudio';
 import MiniPlayer from '../../components/MiniPlayer';
 import Player from '../../components/Player';
 
@@ -12,6 +13,7 @@ export default function TabsLayout() {
   const { user, ready } = useAuth();
   const { expanded }    = usePlayer();
   const { loadLikes }   = useLikes();
+  useAudio(); // single audio controller for the whole app
 
   useEffect(() => {
     if (ready && !user) router.replace('/auth');
