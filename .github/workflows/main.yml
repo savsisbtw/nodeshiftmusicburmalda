@@ -23,36 +23,37 @@ jobs:
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
-      - name: Hotfix Track Player (No deletions)
+      - name: Hardcode Track Player Plugin
         run: |
-          # 1. Решаем проблему с импортом внутри библиотеки
+          # 1. Фиксим пути модулей
           TARGET_DIR="node_modules/react-native-track-player/lib/src"
           if [ -d "$TARGET_DIR" ]; then
-            # Создаем копию без расширения, чтобы Node.js нашла модуль
             cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || true
-            # И наоборот, на всякий случай
-            cp "$TARGET_DIR/trackPlayer.js" "$TARGET_DIR/trackPlayer" 2>/dev/null || true
           fi
 
-          # 2. Маскируем плагин под CommonJS (чтобы Expo не плевался)
+          # 2. Полностью переписываем сломанный плагин на рабочий CommonJS
           PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
-          if [ -f "$PLUGIN_PATH" ]; then
-            # Переименовываем оригинал в .mjs (модуль)
-            mv "$PLUGIN_PATH" "node_modules/react-native-track-player/app.plugin.mjs"
-            # Создаем новый app.plugin.js, который просто пробрасывает вызов
-            echo "module.exports = require('./app.plugin.mjs');" > "$PLUGIN_PATH"
-          fi
-          
-          # Если фокус с mjs не пройдет, просто грубо заменяем импорты на реквайры
-          sed -i '' "s/import/const/g" "node_modules/react-native-track-player/app.plugin.mjs" || true
-          sed -i '' "s/export default/module.exports =/g" "node_modules/react-native-track-player/app.plugin.mjs" || true
+          cat << 'EOF' > "$PLUGIN_PATH"
+          const { withInfoPlist } = require('@expo/config-plugins');
+          module.exports = function(config) {
+            return withInfoPlist(config, (config) => {
+              if (!config.modResults.UIBackgroundModes) {
+                config.modResults.UIBackgroundModes = [];
+              }
+              if (!config.modResults.UIBackgroundModes.includes('audio')) {
+                config.modResults.UIBackgroundModes.push('audio');
+              }
+              return config;
+            });
+          };
+          EOF
 
       - name: Fix Git state
         run: |
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: fix track player compatibility" || true
+          git commit -m "ci: rewrite broken plugin" || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
