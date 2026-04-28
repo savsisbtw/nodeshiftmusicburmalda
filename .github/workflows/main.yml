@@ -25,13 +25,11 @@ jobs:
 
       - name: Hardcode Track Player Plugin
         run: |
-          # 1. Фиксим пути модулей
           TARGET_DIR="node_modules/react-native-track-player/lib/src"
           if [ -d "$TARGET_DIR" ]; then
             cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || true
           fi
 
-          # 2. Полностью переписываем сломанный плагин на рабочий CommonJS
           PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
           cat << 'EOF' > "$PLUGIN_PATH"
           const { withInfoPlist } = require('@expo/config-plugins');
@@ -57,7 +55,6 @@ jobs:
 
       - name: Fix Corrupted PNG Assets
         run: |
-          # Насильно конвертируем все PNG через sips, чтобы убрать нестандартные фильтры
           find . -type f -iname "*.png" -exec sips -s format png {} --out {} \;
 
       - name: Expo prebuild
@@ -67,11 +64,15 @@ jobs:
 
       - name: Build unsigned app
         run: |
-          WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
-          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          # Автоматически находим .xcworkspace и имя схемы
+          WORKSPACE_PATH=$(find ios -name "*.xcworkspace" -type d | head -1)
+          SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
+          
+          echo "Building workspace: $WORKSPACE_PATH with scheme: $SCHEME_NAME"
+          
           xcodebuild build \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+            -workspace "$WORKSPACE_PATH" \
+            -scheme "$SCHEME_NAME" \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
@@ -82,6 +83,7 @@ jobs:
       - name: Package IPA
         run: |
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
+          if [ -z "$APP_PATH" ]; then echo "Error: .app not found"; exit 1; fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -qr burmalda-unsigned.ipa Payload
