@@ -13,35 +13,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 18
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Node 18 более терпима к отсутствию расширений .js
+          node-version: '20'
 
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
-      - name: Surgical Patch (No Deletions)
+      - name: Compatibility Patch (No deletions)
         run: |
-          # 1. Фиксим проблему с отсутствующим расширением .js в импорте
-          SRC_DIR="node_modules/react-native-track-player/lib/src"
-          if [ -d "$SRC_DIR" ]; then
-            # Создаем копию файла с расширением, чтобы импорт 'from ./trackPlayer' сработал
-            cp "$SRC_DIR/trackPlayer" "$SRC_DIR/trackPlayer.js" 2>/dev/null || true
-            echo "Fixed trackPlayer extension"
-          fi
-
-          # 2. Фиксим app.plugin.js, чтобы он не выбивал "Unexpected token"
-          # Мы просто оборачиваем его так, чтобы Node.js понимала экспорт
-          PLUGIN_FILE="node_modules/react-native-track-player/app.plugin.js"
-          if [ -f "$PLUGIN_FILE" ]; then
-            # Если там есть import/export, заменяем их на require/module.exports
-            sed -i '' 's/import /const /g' "$PLUGIN_FILE" || true
-            sed -i '' 's/from / = require/g' "$PLUGIN_FILE" || true
-            sed -i '' 's/export default /module.exports = /g' "$PLUGIN_FILE" || true
-            echo "Transpiled app.plugin.js to CommonJS"
+          # 1. Заставляем Node.js понимать import/export
+          python3 -c "
+          import json, os
+          if os.path.exists('package.json'):
+              with open('package.json', 'r') as f:
+                  data = json.load(f)
+              data['type'] = 'module'
+              with open('package.json', 'w') as f:
+                  json.dump(data, f, indent=2)
+          "
+          
+          # 2. Исправляем битый путь в самом плеере
+          TARGET="node_modules/react-native-track-player/lib/src"
+          if [ -d "$TARGET" ]; then
+            cp "$TARGET/trackPlayer" "$TARGET/trackPlayer.js" 2>/dev/null || true
           fi
 
       - name: Fix Git state
@@ -49,7 +47,7 @@ jobs:
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: surgical patch for track player" || true
+          git commit -m "ci: compatibility mode" || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
@@ -82,4 +80,3 @@ jobs:
         with:
           name: burmalda-unsigned-ipa
           path: burmalda-unsigned.ipa
-          retention-days: 7
