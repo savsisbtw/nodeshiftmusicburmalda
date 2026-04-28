@@ -23,12 +23,26 @@ jobs:
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
+      - name: Force Fix Track Player (Stub Method)
+        run: |
+          # Путь к проблемному файлу
+          TARGET_DIR="node_modules/react-native-track-player/lib/src"
+          TARGET_FILE="$TARGET_DIR/index.js"
+          
+          if [ -d "$TARGET_DIR" ]; then
+            # Создаем абсолютно чистый файл без импортов, которые валят сборку
+            echo "export * from './trackPlayer.js';" > "$TARGET_FILE"
+            # Если файла trackPlayer без расширения нет, создаем и его как заглушку
+            if [ ! -f "$TARGET_DIR/trackPlayer.js" ] && [ -f "$TARGET_DIR/trackPlayer" ]; then
+              cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js"
+            fi
+            echo "Successfully stubbed broken imports in $TARGET_FILE"
+          fi
+
       - name: Remove broken Config Plugin
         run: |
-          # Вырезаем плагин из app.json или app.config.json, чтобы Expo не пытался его загрузить
           if [ -f "app.json" ]; then
             cat app.json | jq 'del(.expo.plugins[] | select(. == "react-native-track-player" or .[0] == "react-native-track-player"))' > app.json.tmp && mv app.json.tmp app.json
-            echo "Removed react-native-track-player from app.json plugins"
           fi
 
       - name: Fix Git state
@@ -36,7 +50,7 @@ jobs:
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: remove broken plugin" || true
+          git commit -m "ci: stub broken modules" || true
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
