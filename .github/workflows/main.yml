@@ -25,11 +25,13 @@ jobs:
 
       - name: Hardcode Track Player Plugin
         run: |
+          # 1. Фиксим пути модулей внутри библиотеки
           TARGET_DIR="node_modules/react-native-track-player/lib/src"
           if [ -d "$TARGET_DIR" ]; then
             cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || true
           fi
 
+          # 2. Переписываем сломанный плагин на чистый CommonJS
           PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
           cat << 'EOF' > "$PLUGIN_PATH"
           const { withInfoPlist } = require('@expo/config-plugins');
@@ -51,10 +53,11 @@ jobs:
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: fix track player and assets" || true
+          git commit -m "ci: patch track player and prepare assets" || true
 
       - name: Fix Corrupted PNG Assets
         run: |
+          # Исправляем PNG, чтобы сборщик не падал на "Unrecognised filter type"
           find . -type f -iname "*.png" -exec sips -s format png {} --out {} \;
 
       - name: Expo prebuild
@@ -62,15 +65,18 @@ jobs:
         env:
           EXPO_NO_DOTENV: 1
 
+      - name: Install CocoaPods
+        run: |
+          # Это создаст .xcworkspace, который нужен Xcode
+          cd ios && pod install --repo-update && cd ..
+
       - name: Build unsigned app
         run: |
-          # Ищем воркспейс в папке ios
-          WORKSPACE_PATH=$(ls ios/*.xcworkspace | head -1)
-          # Берем имя проекта из конфига или папки
+          # Автоматический поиск воркспейса и схемы
+          WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
           SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
           
-          echo "Workspace found: $WORKSPACE_PATH"
-          echo "Scheme detected: $SCHEME_NAME"
+          echo "Building: $WORKSPACE_PATH with scheme: $SCHEME_NAME"
           
           xcodebuild build \
             -workspace "$WORKSPACE_PATH" \
@@ -84,6 +90,7 @@ jobs:
 
       - name: Package IPA
         run: |
+          # Собираем .app в .ipa
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
           if [ -z "$APP_PATH" ]; then echo "Error: .app not found"; exit 1; fi
           mkdir -p Payload
