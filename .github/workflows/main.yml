@@ -23,41 +23,45 @@ jobs:
           npm install --legacy-peer-deps
           npm install react-native-svg --legacy-peer-deps
 
-      - name: Compatibility Patch (No deletions)
+      - name: Fix Module Resolution (No Deletions)
         run: |
-          # 1. Заставляем Node.js понимать import/export
-          python3 -c "
-          import json, os
-          if os.path.exists('package.json'):
-              with open('package.json', 'r') as f:
-                  data = json.load(f)
-              data['type'] = 'module'
-              with open('package.json', 'w') as f:
-                  json.dump(data, f, indent=2)
-          "
+          # Путь к проблемной папке
+          TARGET_DIR="node_modules/react-native-track-player/lib/src"
           
-          # 2. Исправляем битый путь в самом плеере
-          TARGET="node_modules/react-native-track-player/lib/src"
-          if [ -d "$TARGET" ]; then
-            cp "$TARGET/trackPlayer" "$TARGET/trackPlayer.js" 2>/dev/null || true
+          if [ -d "$TARGET_DIR" ]; then
+            echo "Исправляем пути модулей..."
+            # Создаем символическую ссылку: trackPlayer -> trackPlayer.js
+            # Это позволит импорту 'from ./trackPlayer' работать без ошибок
+            cd "$TARGET_DIR"
+            # Если файла с .js нет, создаем его из оригинала
+            if [ -f "trackPlayer" ] && [ ! -f "trackPlayer.js" ]; then
+              cp trackPlayer trackPlayer.js
+            fi
+            # На всякий случай делаем обратную проверку
+            if [ -f "trackPlayer.js" ] && [ ! -f "trackPlayer" ]; then
+              cp trackPlayer.js trackPlayer
+            fi
+            cd -
           fi
 
-      - name: Fix Git state
+      - name: Fix Git State
         run: |
           git config --global user.email "bot@example.com"
           git config --global user.name "Builder Bot"
           git add .
-          git commit -m "ci: compatibility mode" || true
+          git commit -m "ci: fix module resolution" || true
 
-      - name: Expo prebuild
-        run: npx expo prebuild --platform ios --clean --no-install
+      - name: Expo Prebuild
+        # Здесь мы НЕ используем --no-install, чтобы Expo сам докачал нужные нативные зависимости
+        run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
 
-      - name: Build unsigned app
+      - name: Build Unsigned App
         run: |
           WORKSPACE=$(find ios -name "*.xcworkspace" -type d | head -1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          
           xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -66,17 +70,21 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
 
       - name: Package IPA
         run: |
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
+          if [ -z "$APP_PATH" ]; then exit 1; fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
           zip -qr burmalda-unsigned.ipa Payload
+          rm -rf Payload
 
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: burmalda-unsigned-ipa
           path: burmalda-unsigned.ipa
+          retention-days: 7
