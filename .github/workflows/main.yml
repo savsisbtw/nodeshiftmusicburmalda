@@ -20,14 +20,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Устанавливаем всё с игнорированием конфликтов
           npm install --legacy-peer-deps
-          # Принудительно переустанавливаем проблемный плеер и svg
-          npm install react-native-track-player react-native-svg --legacy-peer-deps --force
+          # Используем expo install, чтобы он сам подобрал рабочую версию
+          npx expo install react-native-track-player react-native-svg -- --legacy-peer-deps
+
+      - name: Fix Git state
+        run: |
+          git config --global user.email "bot@example.com"
+          git config --global user.name "Builder Bot"
+          git add .
+          git commit -m "ci: cleanup before prebuild" || true
 
       - name: Fix PNG assets
         run: |
-          find assets -name "*.png" -exec sips -s format png {} --out {} \; 2>/dev/null || true
+          if [ -d "assets" ]; then
+            find assets -name "*.png" -exec sips -s format png {} --out {} \; 2>/dev/null || true
+          fi
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean
