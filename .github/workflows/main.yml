@@ -21,8 +21,8 @@ jobs:
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps --ignore-scripts
-          npm install react-native-svg --legacy-peer-deps --ignore-scripts
-          npm uninstall expo-updates --legacy-peer-deps
+          # Ставим потерянные либы принудительно
+          npm install react-native-svg expo-updates --legacy-peer-deps --ignore-scripts
 
       - name: Prepare app.json
         run: |
@@ -41,7 +41,7 @@ jobs:
           }
           EOF
 
-      - name: Patch Track Player Plugin (Safe)
+      - name: Patch Track Player Plugin
         run: |
           PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
           cat << 'EOF' > "$PLUGIN_PATH"
@@ -58,7 +58,7 @@ jobs:
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
 
-      - name: Manual JS Bundle (Anti-Failure)
+      - name: Manual JS Bundle
         run: |
           mkdir -p ios/BurmaldaMusic
           npx react-native bundle \
