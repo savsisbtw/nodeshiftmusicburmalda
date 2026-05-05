@@ -159,6 +159,23 @@ export function coverUrl(raw: string | null): string | null {
   return `${BASE}/api/music/cover/${raw}`;
 }
 
+// ── Offline/Local playback ────────────────────────────────────────────────────
+
+export async function getTrackUrl(track: Track): Promise<string> {
+  try {
+    const { isTrackDownloaded, getTrackFilePath } = await import('./offline');
+    const isDownloaded = await isTrackDownloaded(track.id);
+    if (isDownloaded) {
+      return getTrackFilePath(track.id);
+    }
+  } catch (err) {
+    console.warn('Failed to check downloaded track:', err);
+  }
+  
+  // Fallback to CDN URL
+  return track.cdn_url || track.cdn_url2 || '';
+}
+
 // ── LRC parser ────────────────────────────────────────────────────────────────
 
 export interface LrcLine {

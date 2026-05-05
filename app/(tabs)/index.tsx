@@ -1,13 +1,17 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, RefreshControl, ActivityIndicator } from 'react-native';
 import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
+import * as Network from 'expo-network';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Colors, Font, Spacing, Radius, TAB_BAR_HEIGHT, MINI_PLAYER_HEIGHT } from '../../constants/theme';
 import { getTracks, getAlbums, Track, Album, coverUrl } from '../../services/api';
-import { usePlayer, useLikes } from '../../store';
+import { downloadTrack, deleteTrack, isTrackDownloaded, DownloadProgress, cacheTracksAndAlbums, getCachedTracks, getCachedAlbums, initOfflineStorage } from '../../services/offline';
+import { usePlayer, useLikes, useOffline } from '../../store';
 import CoverImage from '../../components/CoverImage';
+import DownloadButton from '../../components/DownloadButton';
 
 const { width } = Dimensions.get('window');
 const CARD_W    = (width - Spacing.md * 3) / 2;
@@ -16,17 +20,49 @@ export default function HomeScreen() {
   const [tracks, setTracks]   = useState<Track[]>([]);
   const [albums, setAlbums]   = useState<Album[]>([]);
   const [refresh, setRefresh] = useState(false);
+  const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
   const { setQueue } = usePlayer();
   const { toggleLike, isLiked } = useLikes();
+  const { setOnline, loadDownloadedTracks } = useOffline();
 
   const load = useCallback(async () => {
-    const [t, a] = await Promise.all([getTracks(), getAlbums()]);
-    setTracks(t);
-    setAlbums(a);
+    // Check network
+    const isOnline = await Network.getNetworkStateAsync();
+    setOnline(isOnline.isConnected);
+
+    if (isOnline.isConnected) {
+      try {
+        const [t, a] = await Promise.all([getTracks(), getAlbums()]);
+        if (t.length > 0) {
+          setTracks(t);
+          setAlbums(a);
+          await cacheTracksAndAlbums(t, a);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch online:', err);
+      }
+    }
+
+    // Fallback to cached data
+    const cachedTracks = await getCachedTracks();
+    const cachedAlbums = await getCachedAlbums();
+    if (cachedTracks) setTracks(cachedTracks);
+    if (cachedAlbums) setAlbums(cachedAlbums);
+    setLoading(false);
+  }, [setOnline]);
+
+  useEffect(() => {
+    initOfflineStorage();
+    loadDownloadedTracks();
+    load();
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useFocusEffect(() => {
+    loadDownloadedTracks();
+  });
 
   const onRefresh = async () => {
     setRefresh(true);
@@ -39,6 +75,14 @@ export default function HomeScreen() {
     setQueue(list, idx);
     usePlayer.getState().setExpanded(true);
   };
+
+  if (loading && tracks.length === 0) {
+    return (
+      <View style={[styles.scroll, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -152,8 +196,35 @@ function TrackRow({ track, index, liked, onPress, onLike }: {
   track: Track; index: number; liked: boolean; onPress: () => void; onLike: () => void;
 }) {
   const { queue, index: qi } = usePlayer();
+  const { downloadedTracks, downloading, addDownloadedTrack, removeDownloadedTrack, setDownloading } = useOffline();
+  const [isDownloaded, setIsDownloaded] = useState(false);
   const active = queue[qi]?.id === track.id;
   const cover  = coverUrl(track.cover_url);
+  const downloadProgress = downloading.get(track.id) || 0;
+
+  useEffect(() => {
+    setIsDownloaded(downloadedTracks.has(track.id));
+  }, [downloadedTracks, track.id]);
+
+  const handleDownload = async () => {
+    if (isDownloaded) {
+      await deleteTrack(track.id);
+      removeDownloadedTrack(track.id);
+      setIsDownloaded(false);
+    } else {
+      try {
+        const success = await downloadTrack(track, (prog) => {
+          setDownloading(track.id, prog.progress);
+        });
+        if (success) {
+          addDownloadedTrack(track.id);
+          setIsDownloaded(true);
+        }
+      } catch (err) {
+        console.warn('Download failed:', err);
+      }
+    }
+  };
 
   return (
     <Pressable onPress={onPress} style={[styles.trackRow, active && styles.trackRowActive]}>
@@ -168,6 +239,14 @@ function TrackRow({ track, index, liked, onPress, onLike }: {
           <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke={liked ? Colors.pink : Colors.text3} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       </Pressable>
+      <DownloadButton
+        trackId={track.id}
+        isDownloaded={isDownloaded}
+        downloadProgress={downloadProgress}
+        onDownload={handleDownload}
+        onDelete={handleDownload}
+        size="sm"
+      />
       <Text style={styles.trackDur}>{fmt(track.duration)}</Text>
     </Pressable>
   );
@@ -190,13 +269,13 @@ const styles = StyleSheet.create({
   albumTitle:     { color: Colors.text, fontSize: Font.sm, fontWeight: '600' },
   albumArtist:    { color: Colors.text2, fontSize: Font.xs, marginTop: 2 },
   albumCount:     { color: Colors.text3, fontSize: Font.xs, marginTop: 2 },
-  trackRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: Spacing.sm, borderRadius: Radius.sm, gap: Spacing.sm },
+  trackRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: Spacing.sm, borderRadius: Radius.sm, gap: 8 },
   trackRowActive: { backgroundColor: Colors.surface },
   trackNum:       { width: 24, color: Colors.text3, fontSize: Font.sm, textAlign: 'center' },
   trackInfo:      { flex: 1 },
   trackTitle:     { color: Colors.text, fontSize: Font.md, fontWeight: '600' },
   trackArtist:    { color: Colors.text2, fontSize: Font.sm, marginTop: 2 },
-  trackDur:       { color: Colors.text3, fontSize: Font.xs },
+  trackDur:       { color: Colors.text3, fontSize: Font.xs, width: 36, textAlign: 'right' },
   // Now playing strip
   npStrip:        { borderRadius: Radius.lg, overflow: 'hidden', marginBottom: Spacing.xl, height: 80 },
   npDim:          { backgroundColor: 'rgba(0,0,0,0.5)' },

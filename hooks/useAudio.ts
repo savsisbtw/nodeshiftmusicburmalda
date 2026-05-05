@@ -7,7 +7,7 @@ import TrackPlayer, {
   useProgress,
 } from 'react-native-track-player';
 import { usePlayer } from '../store';
-import { coverUrl, Track } from '../services/api';
+import { coverUrl, Track, getTrackUrl } from '../services/api';
 
 let _setupDone    = false;
 let _lastLoadedId: number | null = null;
@@ -43,14 +43,16 @@ async function ensureSetup() {
 }
 
 // Load a track and start playing. Mutex prevents double-load on the same ID.
+// Uses local file if downloaded, otherwise streams from CDN
 export async function loadAndPlay(track: Track) {
   if (_lastLoadedId === track.id) return;
   _lastLoadedId = track.id;
   try {
+    const url = await getTrackUrl(track);
     await TrackPlayer.reset();
     await TrackPlayer.add({
       id:       String(track.id),
-      url:      track.cdn_url2 || track.cdn_url,
+      url:      url || (track.cdn_url2 || track.cdn_url),
       title:    track.title,
       artist:   track.artist,
       artwork:  coverUrl(track.cover_url) ?? undefined,

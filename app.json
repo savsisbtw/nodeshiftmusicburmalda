@@ -19,6 +19,7 @@
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
         "NSMicrophoneUsageDescription": "Не используется",
+        "NSFileProtectionComplete": "NSFileProtectionCompleteUnlessOpen",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": ["burmalda"]

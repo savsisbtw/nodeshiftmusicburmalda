@@ -2,6 +2,67 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Track, User } from '../services/api';
 
+// ── Offline / Downloads ───────────────────────────────────────────────────────
+
+interface OfflineState {
+  downloadedTracks:    Set<number>;
+  downloading:         Map<number, number>; // trackId -> progress 0-1
+  isOnline:            boolean;
+
+  addDownloadedTrack:  (id: number) => void;
+  removeDownloadedTrack: (id: number) => void;
+  setDownloading:      (id: number, progress: number) => void;
+  clearDownloading:    (id: number) => void;
+  loadDownloadedTracks: () => Promise<void>;
+  setOnline:           (online: boolean) => void;
+}
+
+export const useOffline = create<OfflineState>((set, get) => ({
+  downloadedTracks: new Set(),
+  downloading:      new Map(),
+  isOnline:         true,
+
+  addDownloadedTrack: (id) => {
+    const next = new Set(get().downloadedTracks);
+    next.add(id);
+    set({ downloadedTracks: next });
+  },
+
+  removeDownloadedTrack: (id) => {
+    const next = new Set(get().downloadedTracks);
+    next.delete(id);
+    set({ downloadedTracks: next });
+  },
+
+  setDownloading: (id, progress) => {
+    const next = new Map(get().downloading);
+    if (progress >= 1) {
+      next.delete(id);
+    } else {
+      next.set(id, progress);
+    }
+    set({ downloading: next });
+  },
+
+  clearDownloading: (id) => {
+    const next = new Map(get().downloading);
+    next.delete(id);
+    set({ downloading: next });
+  },
+
+  loadDownloadedTracks: async () => {
+    try {
+      const { getDownloadedTracks } = await import('../services/offline');
+      const ids = await getDownloadedTracks();
+      set({ downloadedTracks: new Set(ids) });
+    } catch (err) {
+      console.warn('Failed to load downloaded tracks:', err);
+    }
+  },
+
+  setOnline: (online) => set({ isOnline: online }),
+}));
+
 // ── Player ────────────────────────────────────────────────────────────────────
 
 interface PlayerState {
