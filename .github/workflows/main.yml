@@ -20,18 +20,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Устанавливаем пакеты, игнорируя конфликты версий
+          # Устанавливаем базу, игнорируя ошибки
           npm install --legacy-peer-deps || true
           
-          # Принудительно ставим нужные версии, которые просил Expo
+          # Явно ставим версии, которые требовал лог ранее
           npm install expo-image@~1.13.0 expo-file-system@~17.0.1
           
-          # КРИТИЧЕСКИЙ ФИКС: пересобираем плеер, чтобы появились файлы в /lib/src/
-          npm install react-native-track-player@latest
-          npx tsc --project node_modules/react-native-track-player/tsconfig.json || true
+          # Устанавливаем плеер через Expo CLI — это критично для правильных путей
+          npx expo install react-native-track-player
 
       - name: Expo prebuild
-        # Убираем --no-install, чтобы Expo сам проверил целостность нативных модулей
+        # Убираем --no-install, чтобы Expo сам перепроверил node_modules перед сборкой
         run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
