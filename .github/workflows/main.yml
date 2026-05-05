@@ -21,6 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps --ignore-scripts
+          npm install react-native-svg --legacy-peer-deps --ignore-scripts
           npm uninstall expo-updates --legacy-peer-deps
 
       - name: Prepare app.json
@@ -42,7 +43,6 @@ jobs:
 
       - name: Patch Track Player Plugin (Safe)
         run: |
-          # Чиним только app.plugin.js, без вмешательства в исходники либы
           PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
           cat << 'EOF' > "$PLUGIN_PATH"
           const { withInfoPlist } = require('@expo/config-plugins');
