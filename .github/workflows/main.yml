@@ -17,7 +17,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm' # Кэш теперь будет работать, если есть lock-файл
 
       - name: Install dependencies
         # npm ci — это "чистая" установка строго по lock-файлу. 
