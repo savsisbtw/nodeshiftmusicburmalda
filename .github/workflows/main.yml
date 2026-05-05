@@ -17,14 +17,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          # Кэш удален, чтобы не искать lock-файл
 
       - name: Install dependencies
-        # npm ci — это "чистая" установка строго по lock-файлу. 
-        # Она быстрее и не меняет твои зависимости на ходу.
-        run: npm ci
+        # Используем обычный install, раз lock-файла нет
+        run: npm install
 
       - name: Expo prebuild
-        # Добавлен флаг --no-install, чтобы Expo не запускал установку пакетов заново
+        # Добавляем --no-install, чтобы не провоцировать повторную установку модулей
         run: npx expo prebuild --platform ios --clean --no-install
         env:
           EXPO_NO_DOTENV: 1
