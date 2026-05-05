@@ -21,7 +21,6 @@ jobs:
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps --ignore-scripts
-          # Ставим потерянные либы принудительно
           npm install react-native-svg expo-updates --legacy-peer-deps --ignore-scripts
 
       - name: Prepare app.json
@@ -54,6 +53,18 @@ jobs:
             });
           };
           EOF
+
+      - name: Patch Player Syntax
+        run: |
+          node -e "
+          const fs = require('fs');
+          const p = 'components/Player.tsx';
+          if (fs.existsSync(p)) {
+            let c = fs.readFileSync(p, 'utf8');
+            c = c.replace(/<Text[^>]*>\{fmt\(progress\)\}<\/Text>\s*<Text[^>]*>\{fmt\(duration\)\}<\/Text>/, m => '<>' + m + '</>');
+            fs.writeFileSync(p, c, 'utf8');
+          }
+          "
 
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
