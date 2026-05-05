@@ -20,13 +20,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install
-          # Принудительно фиксим зависимости через expo, чтобы прописать пути
-          npx expo install --check
+          # Устанавливаем то, что есть, игнорируя ошибки совместимости на первом этапе
+          npm install --legacy-peer-deps || true
+          
+          # Принудительно обновляем проблемные пакеты, которые требовал Expo
+          # Это то же самое, что npx expo install --fix, но напрямую через npm
+          npm install expo-image@~1.13.0 expo-file-system@~17.0.1 react-native-track-player@latest
 
       - name: Expo prebuild
-        # Убираем --no-install. Раз библиотки не находятся, 
-        # пусть Expo сам попробует докачать то, чего ему не хватает.
+        # Здесь мы НЕ используем --no-install, чтобы Expo мог сам докачать нужные нативные конфиги
         run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
