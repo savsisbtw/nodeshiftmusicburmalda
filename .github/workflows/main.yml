@@ -42,12 +42,6 @@ jobs:
 
       - name: Patch Track Player
         run: |
-          TARGET_DIR="node_modules/react-native-track-player/lib/src"
-          if [ -d "$TARGET_DIR" ]; then
-            cp "$TARGET_DIR/trackPlayer.js" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || \
-            cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || true
-          fi
-          
           PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
           cat << 'EOF' > "$PLUGIN_PATH"
           const { withInfoPlist } = require('@expo/config-plugins');
@@ -71,7 +65,8 @@ jobs:
           WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
           SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
           
-          # ФИКС: Явно прокидываем путь к NODE, чтобы скрипт Bundle RN не падал
+          # Жесткая привязка ноды для скриптов Xcode
+          sudo ln -s $(which node) /usr/local/bin/node || true
           export NODE_BINARY=$(which node)
           
           xcodebuild build \
@@ -84,20 +79,22 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             ENABLE_BITCODE=NO \
+            FORCE_BUNDLING=銘 \
             | xcpretty
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -type d | grep -v "xctest" | head -1)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -type d | grep -v "xctest" | head -1)
+            echo "Build failed: .app not found"
+            exit 1
           fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
-          zip -qr burmalda_final.ipa Payload
+          zip -qr burmalda_full.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Burmalda-IPA
-          path: burmalda_final.ipa
+          name: Burmalda-Full-IPA
+          path: burmalda_full.ipa
