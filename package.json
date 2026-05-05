@@ -23,7 +23,7 @@
     "expo-updates": "~0.25.27",
     "expo-web-browser": "~13.0.3",
     "expo-file-system": "~16.0.9",
-    "expo-network": "~6.0.2",
+    "expo-network": "~6.0.0",
     "react": "18.2.0",
     "react-native": "0.74.5",
     "react-native-gesture-handler": "~2.16.2",
