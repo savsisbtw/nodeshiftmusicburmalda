@@ -1,4 +1,4 @@
-name: Build iOS IPA (Full Clean Build)
+name: Build iOS IPA
 
 on:
   push:
@@ -20,24 +20,42 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Устанавливаем базу без лишнего мусора
           npm install --legacy-peer-deps --ignore-scripts
           npm install react-native-svg --legacy-peer-deps --ignore-scripts
 
-      - name: Patch and Clean Project
+      - name: Hard Reset app.json
         run: |
-          # 1. Радикально вырезаем expo-updates, чтобы Xcode не искал скрипты и ключи
-          # Это решит проблему PhaseScriptExecution [CP-User]
-          sed -i '' '/"expo-updates"/d' app.json || true
-          
-          # 2. Фикс путей для react-native-track-player
+          cat << 'EOF' > app.json
+          {
+            "expo": {
+              "name": "BurmaldaMusic",
+              "slug": "nodeshiftmusicburmalda",
+              "version": "1.0.1",
+              "orientation": "portrait",
+              "icon": "./assets/icon.png",
+              "userInterfaceStyle": "light",
+              "ios": {
+                "supportsTablet": true,
+                "bundleIdentifier": "com.nodeshift.burmaldamusic",
+                "config": {
+                  "usesNonExemptEncryption": false
+                }
+              },
+              "plugins": [
+                "./node_modules/react-native-track-player/app.plugin.js"
+              ]
+            }
+          }
+          EOF
+
+      - name: Patch Track Player
+        run: |
           TARGET_DIR="node_modules/react-native-track-player/lib/src"
           if [ -d "$TARGET_DIR" ]; then
             cp "$TARGET_DIR/trackPlayer.js" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || \
             cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || true
           fi
-
-          # 3. Инъекция Background Modes (чтобы музыка не дохла в фоне)
+          
           PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
           cat << 'EOF' > "$PLUGIN_PATH"
           const { withInfoPlist } = require('@expo/config-plugins');
@@ -50,26 +68,19 @@ jobs:
           };
           EOF
 
-      - name: Fix Image Assets
-        run: find . -type f -iname "*.png" -exec sips -s format png {} --out {} \;
-
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
         env:
           EXPO_NO_DOTENV: 1
 
       - name: Install CocoaPods
-        run: |
-          cd ios
-          pod install --repo-update
-          cd ..
+        run: cd ios && pod install --repo-update && cd ..
 
       - name: Build unsigned app
         run: |
           WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
           SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
           
-          # Собираем без подписи. Игнорируем варнинги про nullability.
           xcodebuild build \
             -workspace "$WORKSPACE_PATH" \
             -scheme "$SCHEME_NAME" \
@@ -80,20 +91,17 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             ENABLE_BITCODE=NO \
-            STRIP_INSTALLED_PRODUCT=YES \
             | xcpretty
 
       - name: Package IPA
         run: |
-          # Находим скомпилированный .app и пакуем в Payload
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
-          zip -qr burmalda_music.ipa Payload
+          zip -qr burmalda_final.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: Burmalda-IPA
-          path: burmalda_music.ipa
-          retention-days: 1
+          path: burmalda_final.ipa
