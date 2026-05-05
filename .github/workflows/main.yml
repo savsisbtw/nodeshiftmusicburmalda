@@ -40,22 +40,19 @@ jobs:
           }
           EOF
 
-      - name: Patch Track Player
-        run: |
-          PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
-          cat << 'EOF' > "$PLUGIN_PATH"
-          const { withInfoPlist } = require('@expo/config-plugins');
-          module.exports = function(config) {
-            return withInfoPlist(config, (config) => {
-              if (!config.modResults.UIBackgroundModes) config.modResults.UIBackgroundModes = [];
-              if (!config.modResults.UIBackgroundModes.includes('audio')) config.modResults.UIBackgroundModes.push('audio');
-              return config;
-            });
-          };
-          EOF
-
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Manual JS Bundle (Anti-Failure)
+        run: |
+          mkdir -p ios/BurmaldaMusic
+          npx react-native bundle \
+            --entry-file index.js \
+            --platform ios \
+            --dev false \
+            --bundle-output ios/BurmaldaMusic/main.jsbundle \
+            --assets-dest ios/BurmaldaMusic
+          # Это создаст бандл заранее, чтобы Xcode не упал на его генерации
 
       - name: Install CocoaPods
         run: cd ios && pod install --repo-update && cd ..
@@ -65,8 +62,7 @@ jobs:
           WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
           SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
           
-          # Жесткая привязка ноды для скриптов Xcode
-          sudo ln -s $(which node) /usr/local/bin/node || true
+          # Прописываем пути к ноде для Xcode
           export NODE_BINARY=$(which node)
           
           xcodebuild build \
@@ -79,22 +75,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             ENABLE_BITCODE=NO \
-            FORCE_BUNDLING=銘 \
+            SKIP_BUNDLING=YES \
             | xcpretty
+          # SKIP_BUNDLING=YES говорит Xcode использовать наш готовый бандл
 
       - name: Package IPA
         run: |
           APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -type d | grep -v "xctest" | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Build failed: .app not found"
-            exit 1
-          fi
+          if [ -z "$APP_PATH" ]; then exit 1; fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
-          zip -qr burmalda_full.ipa Payload
+          zip -qr burmalda_final.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Burmalda-Full-IPA
-          path: burmalda_full.ipa
+          name: Burmalda-IPA
+          path: burmalda_final.ipa
