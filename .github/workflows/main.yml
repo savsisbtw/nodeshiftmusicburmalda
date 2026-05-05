@@ -17,12 +17,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm' # Кэш теперь будет работать, если есть lock-файл
 
       - name: Install dependencies
-        run: npm install
+        # npm ci — это "чистая" установка строго по lock-файлу. 
+        # Она быстрее и не меняет твои зависимости на ходу.
+        run: npm ci
 
       - name: Expo prebuild
-        run: npx expo prebuild --platform ios --clean
+        # Добавлен флаг --no-install, чтобы Expo не запускал установку пакетов заново
+        run: npx expo prebuild --platform ios --clean --no-install
         env:
           EXPO_NO_DOTENV: 1
 
