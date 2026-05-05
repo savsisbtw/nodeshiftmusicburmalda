@@ -17,15 +17,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Кэш удален, чтобы не искать lock-файл
 
       - name: Install dependencies
-        # Используем обычный install, раз lock-файла нет
-        run: npm install
+        run: |
+          npm install
+          # Принудительно фиксим зависимости через expo, чтобы прописать пути
+          npx expo install --check
 
       - name: Expo prebuild
-        # Добавляем --no-install, чтобы не провоцировать повторную установку модулей
-        run: npx expo prebuild --platform ios --clean --no-install
+        # Убираем --no-install. Раз библиотки не находятся, 
+        # пусть Expo сам попробует докачать то, чего ему не хватает.
+        run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
 
