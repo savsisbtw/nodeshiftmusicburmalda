@@ -21,9 +21,10 @@ jobs:
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps --ignore-scripts
-          npm install react-native-svg --legacy-peer-deps --ignore-scripts
+          # Удаляем пакет, который валит билд
+          npm uninstall expo-updates --legacy-peer-deps
 
-      - name: Restore app.json
+      - name: Prepare app.json
         run: |
           cat << 'EOF' > app.json
           {
@@ -48,7 +49,7 @@ jobs:
           }
           EOF
 
-      - name: Patch Native Plugins
+      - name: Patch Track Player
         run: |
           TARGET_DIR="node_modules/react-native-track-player/lib/src"
           if [ -d "$TARGET_DIR" ]; then
@@ -91,7 +92,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             ENABLE_BITCODE=NO \
-            OTHER_LDFLAGS='$(inherited) -framework "QuartzCore" -framework "CoreAudio"' \
             | xcpretty
 
       - name: Package IPA
@@ -100,12 +100,16 @@ jobs:
           if [ -z "$APP_PATH" ]; then
             APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -type d | grep -v "xctest" | head -1)
           fi
+          if [ -z "$APP_PATH" ]; then
+            echo "Build failed: .app file not found"
+            exit 1
+          fi
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
-          zip -qr burmalda_full.ipa Payload
+          zip -qr burmalda_fixed.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Burmalda-Full-IPA
-          path: burmalda_full.ipa
+          name: Burmalda-Fixed-IPA
+          path: burmalda_fixed.ipa
