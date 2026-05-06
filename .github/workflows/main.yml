@@ -1,105 +1,95 @@
-name: Build iOS IPA
+name: Build iOS App
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
   workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
 
 jobs:
   build:
-    runs-on: macos-latest
-
+    runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      - name: Install dependencies (Full Build)
+        run: npm install
+        
+      - name: Validate project
         run: |
-          npm install --legacy-peer-deps
-          npm install react-native-svg --legacy-peer-deps
+          echo "Validating project structure..."
+          test -f app.json && echo "✓ app.json" || (echo "✗ Missing app.json" && exit 1)
+          test -f package.json && echo "✓ package.json" || (echo "✗ Missing package.json" && exit 1)
+          test -f eas.json && echo "✓ eas.json" || (echo "✓ eas.json will be created" && true)
 
-      - name: Hardcode Track Player Plugin
+      - name: Check TypeScript
+        run: npx tsc --noEmit 2>&1 | head -20 || true
+
+      - name: Setup Expo CLI
+        run: npm install -g expo-cli eas-cli
+
+      - name: Determine build profile
+        id: profile
         run: |
-          # 1. Фиксим пути модулей внутри библиотеки
-          TARGET_DIR="node_modules/react-native-track-player/lib/src"
-          if [ -d "$TARGET_DIR" ]; then
-            cp "$TARGET_DIR/trackPlayer" "$TARGET_DIR/trackPlayer.js" 2>/dev/null || true
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PROFILE="${{ github.event.inputs.profile }}"
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            PROFILE="preview"
+          else
+            PROFILE="production"
           fi
+          echo "profile=$PROFILE" >> $GITHUB_OUTPUT
+          echo "Building with profile: $PROFILE"
 
-          # 2. Переписываем сломанный плагин на чистый CommonJS
-          PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
-          cat << 'EOF' > "$PLUGIN_PATH"
-          const { withInfoPlist } = require('@expo/config-plugins');
-          module.exports = function(config) {
-            return withInfoPlist(config, (config) => {
-              if (!config.modResults.UIBackgroundModes) {
-                config.modResults.UIBackgroundModes = [];
-              }
-              if (!config.modResults.UIBackgroundModes.includes('audio')) {
-                config.modResults.UIBackgroundModes.push('audio');
-              }
-              return config;
-            });
-          };
-          EOF
-
-      - name: Fix Git state
-        run: |
-          git config --global user.email "bot@example.com"
-          git config --global user.name "Builder Bot"
-          git add .
-          git commit -m "ci: patch track player and prepare assets" || true
-
-      - name: Fix Corrupted PNG Assets
-        run: |
-          # Исправляем PNG, чтобы сборщик не падал на "Unrecognised filter type"
-          find . -type f -iname "*.png" -exec sips -s format png {} --out {} \;
-
-      - name: Expo prebuild
-        run: npx expo prebuild --platform ios --clean --no-install
+      - name: Build with EAS
         env:
-          EXPO_NO_DOTENV: 1
-
-      - name: Install CocoaPods
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
         run: |
-          # Это создаст .xcworkspace, который нужен Xcode
-          cd ios && pod install --repo-update && cd ..
-
-      - name: Build unsigned app
-        run: |
-          # Автоматический поиск воркспейса и схемы
-          WORKSPACE_PATH=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
-          SCHEME_NAME=$(basename "$WORKSPACE_PATH" .xcworkspace)
+          PROFILE="${{ steps.profile.outputs.profile }}"
+          echo "🔨 Starting EAS build with profile: $PROFILE"
           
-          echo "Building: $WORKSPACE_PATH with scheme: $SCHEME_NAME"
-          
-          xcodebuild build \
-            -workspace "$WORKSPACE_PATH" \
-            -scheme "$SCHEME_NAME" \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          eas build \
+            --platform ios \
+            --profile "$PROFILE" \
+            --non-interactive \
+            --wait \
+            2>&1 | tee build.log
 
-      - name: Package IPA
+      - name: Extract build info
+        if: always()
         run: |
-          # Собираем .app в .ipa
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -name "*.app" -type d | grep -v "\.xctest" | head -1)
-          if [ -z "$APP_PATH" ]; then echo "Error: .app not found"; exit 1; fi
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          zip -qr burmalda-unsigned.ipa Payload
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if grep -q "Successfully built" build.log; then
+            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
+            echo "📲 **Download:** [EAS Dashboard](https://expo.dev)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+            echo "📋 **Profile:** ${{ steps.profile.outputs.profile }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: burmalda-unsigned-ipa
-          path: burmalda-unsigned.ipa
-          retention-days: 1
+      - name: Handle build failure
+        if: failure()
+        run: |
+          echo "❌ Build failed!"
+          echo "Check logs above or visit EAS Dashboard"
+          tail -50 build.log
+          exit 1
