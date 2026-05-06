@@ -29,7 +29,7 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     // Check network
     const isOnline = await Network.getNetworkStateAsync();
-    setOnline(isOnline.isConnected);
+    setOnline(isOnline.isConnected ?? false);
 
     if (isOnline.isConnected) {
       try {

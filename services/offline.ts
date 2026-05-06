@@ -134,12 +134,13 @@ export async function downloadTrack(
       filePath,
       {},
       (progress) => {
-        const { totalBytesWritten, totalBytesExpectedToDownload } = progress;
+        const { totalBytesWritten, totalBytesExpectedToDownload } = progress as any;
+        const total = totalBytesExpectedToDownload || 1;
         onProgress?.({
           trackId: track.id,
-          progress: totalBytesWritten / totalBytesExpectedToDownload,
+          progress: totalBytesWritten / total,
           loaded: totalBytesWritten,
-          total: totalBytesExpectedToDownload,
+          total: total,
         });
       }
     );
@@ -183,7 +184,9 @@ export async function getStorageInfo(): Promise<{ used: number; total: number } 
     
     for (const file of files) {
       const fileInfo = await FileSystem.getInfoAsync(`${DOCUMENTS_DIR}${file}`);
-      if (fileInfo.size) used += fileInfo.size;
+      if (fileInfo.exists && 'size' in fileInfo && fileInfo.size) {
+        used += (fileInfo as any).size;
+      }
     }
 
     return { used, total: 5 * 1024 * 1024 * 1024 }; // 5GB limit

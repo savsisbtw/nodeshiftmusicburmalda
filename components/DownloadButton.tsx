@@ -95,7 +95,8 @@ const styles = StyleSheet.create({
   },
   progress: {
     color: Colors.accent,
-    fontFamily: Font.family.medium,
+    fontFamily: 'System',
+    fontWeight: '600',
     marginTop: 2,
   },
 });

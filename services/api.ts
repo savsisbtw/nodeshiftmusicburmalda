@@ -23,7 +23,7 @@ export async function clearTokens() {
 
 export async function apiFetch(path: string, opts: RequestInit = {}): Promise<Response> {
   const token = await getAccessToken();
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(opts.headers as Record<string, string> || {}),

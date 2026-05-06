@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Text, ViewStyle } from 'react-native';
+import { Text, ImageStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Radius } from '../constants/theme';
@@ -31,7 +31,7 @@ interface Props {
   title:  string;
   size:   number;
   radius?: number;
-  style?: ViewStyle;
+  style?: ImageStyle;
   blurRadius?: number;
 }
 
