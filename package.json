@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
+    "postinstall": "node scripts/patch-track-player.js",
     "build:ios": "eas build --platform ios --profile production",
     "build:preview": "eas build --platform ios --profile preview",
     "update": "eas update --branch production"
