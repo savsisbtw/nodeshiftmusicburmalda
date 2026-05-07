@@ -1,95 +1,85 @@
-name: Build iOS App
+name: NodeShiftMusic iOS Build
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, master]
   workflow_dispatch:
-    inputs:
-      profile:
-        description: 'Build profile'
-        required: true
-        default: 'preview'
-        type: choice
-        options:
-          - preview
-          - production
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    
+  build-ipa:
+    name: Build Unsigned IPA
+    runs-on: macos-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install dependencies (Full Build)
-        run: npm install
-        
-      - name: Validate project
-        run: |
-          echo "Validating project structure..."
-          test -f app.json && echo "✓ app.json" || (echo "✗ Missing app.json" && exit 1)
-          test -f package.json && echo "✓ package.json" || (echo "✗ Missing package.json" && exit 1)
-          test -f eas.json && echo "✓ eas.json" || (echo "✓ eas.json will be created" && true)
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Check TypeScript
-        run: npx tsc --noEmit 2>&1 | head -20 || true
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods --no-document
 
-      - name: Setup Expo CLI
-        run: npm install -g expo-cli eas-cli
-
-      - name: Determine build profile
-        id: profile
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PROFILE="${{ github.event.inputs.profile }}"
-          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
-            PROFILE="preview"
-          else
-            PROFILE="production"
-          fi
-          echo "profile=$PROFILE" >> $GITHUB_OUTPUT
-          echo "Building with profile: $PROFILE"
-
-      - name: Build with EAS
+      - name: Expo prebuild
         env:
-          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
-        run: |
-          PROFILE="${{ steps.profile.outputs.profile }}"
-          echo "🔨 Starting EAS build with profile: $PROFILE"
-          
-          eas build \
-            --platform ios \
-            --profile "$PROFILE" \
-            --non-interactive \
-            --wait \
-            2>&1 | tee build.log
+          EXPO_NO_DOTENV: 1
+        run: npx expo prebuild --platform ios --clean
 
-      - name: Extract build info
-        if: always()
+      - name: Install Pods
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Find workspace & scheme
+        id: xcode
         run: |
-          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if grep -q "Successfully built" build.log; then
-            echo "✅ **Status:** Success" >> $GITHUB_STEP_SUMMARY
-            echo "📲 **Download:** [EAS Dashboard](https://expo.dev)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
-            echo "📋 **Profile:** ${{ steps.profile.outputs.profile }}" >> $GITHUB_STEP_SUMMARY
+          WS=$(find ios -name "*.xcworkspace" -maxdepth 2 | head -1)
+          SCHEME=$(basename "$WS" .xcworkspace)
+          echo "workspace=$WS" >> $GITHUB_OUTPUT
+          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+          echo "Workspace: $WS  |  Scheme: $SCHEME"
+
+      - name: Build unsigned archive
+        run: |
+          xcodebuild archive \
+            -workspace "${{ steps.xcode.outputs.workspace }}" \
+            -scheme "${{ steps.xcode.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/NodeShiftMusic.xcarchive" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO \
+            2>&1 | xcpretty || true
+
+      - name: Package IPA
+        run: |
+          APPS="$RUNNER_TEMP/NodeShiftMusic.xcarchive/Products/Applications"
+          mkdir -p Payload
+          cp -r "$APPS/"*.app Payload/
+          zip -qr NodeShiftMusic-unsigned.ipa Payload
+          rm -rf Payload
+          echo "IPA size: $(du -sh NodeShiftMusic-unsigned.ipa | cut -f1)"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: NodeShiftMusic-unsigned
+          path: NodeShiftMusic-unsigned.ipa
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "## NodeShiftMusic Build" >> $GITHUB_STEP_SUMMARY
+          echo "Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ -f NodeShiftMusic-unsigned.ipa ]; then
+            echo "IPA: $(du -sh NodeShiftMusic-unsigned.ipa | cut -f1)" >> $GITHUB_STEP_SUMMARY
+            echo "Скачай из раздела Artifacts этого run'а" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-
-      - name: Handle build failure
-        if: failure()
-        run: |
-          echo "❌ Build failed!"
-          echo "Check logs above or visit EAS Dashboard"
-          tail -50 build.log
-          exit 1
