@@ -16,6 +16,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="auth/callback" options={{ presentation: 'fullScreenModal' }} />
       </Stack>
     </GestureHandlerRootView>
   );

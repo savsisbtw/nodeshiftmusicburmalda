@@ -21,21 +21,24 @@ export function useDynamicColor(coverUri: string | null): string {
     if (!coverUri) { setColor('#1a1a2e'); return; }
     if (colorCache.has(coverUri)) { setColor(colorCache.get(coverUri)!); return; }
 
-    ImageColors.getColors(coverUri, {
-      fallback: '#1a1a2e',
-      cache: true,
-      key: coverUri,
-    }).then((result) => {
-      let picked = '#1a1a2e';
-      if (result.platform === 'ios') {
-        picked = result.primary ?? result.background ?? picked;
-      } else if (result.platform === 'android') {
-        picked = result.vibrant ?? result.dominant ?? picked;
-      }
-      // Darken slightly for UI safety
-      colorCache.set(coverUri, picked);
-      setColor(picked);
-    }).catch(() => {});
+    try {
+      ImageColors.getColors(coverUri, {
+        fallback: '#1a1a2e',
+        cache: true,
+        key: coverUri,
+      }).then((result) => {
+        let picked = '#1a1a2e';
+        if (result.platform === 'ios') {
+          picked = result.primary ?? result.background ?? picked;
+        } else if (result.platform === 'android') {
+          picked = result.vibrant ?? result.dominant ?? picked;
+        }
+        colorCache.set(coverUri, picked);
+        setColor(picked);
+      }).catch(() => {});
+    } catch {
+      // Native module not available — silently skip
+    }
   }, [coverUri]);
 
   return color;

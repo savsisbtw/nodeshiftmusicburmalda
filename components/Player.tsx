@@ -62,9 +62,13 @@ export default function Player() {
 
   // Shake → shuffle
   const onShake = useCallback(() => {
-    if (!shuffle) toggleShuffle();
-    const ni = usePlayer.getState().nextTrack();
-    usePlayer.getState().setIndex(ni);
+    try {
+      if (!shuffle) toggleShuffle();
+      const state = usePlayer.getState();
+      if (state.nextTrack && state.setIndex) {
+        state.setIndex(state.nextTrack());
+      }
+    } catch {}
   }, [shuffle, toggleShuffle]);
   useShakeToShuffle(onShake);
 
@@ -184,10 +188,35 @@ export default function Player() {
     pointerEvents: playerOpacity.value > 0.5 ? 'auto' : 'none',
   }));
 
+  // onNext/onPrev MUST be defined BEFORE coverGesture (no hoisting for useCallback)
+  const onNext = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    try {
+      const ni = usePlayer.getState().nextTrack();
+      usePlayer.getState().setIndex(ni);
+    } catch {}
+  }, []);
+
+  const onPrev = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    try {
+      if (progress > 3) { seekTo(0); return; }
+      const pi = usePlayer.getState().prevTrack();
+      usePlayer.getState().setIndex(pi);
+    } catch {}
+  }, [progress]);
+
+  const onCopyTitle = useCallback(() => {
+    try {
+      Clipboard.setStringAsync(`${track?.artist} — ${track?.title}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch {}
+  }, [track]);
+
   // Horizontal swipe on cover → next/prev track
   const coverGesture = useAnimatedGestureHandler<any, { startX: number }>({
     onStart: (_, ctx) => { ctx.startX = coverTranslateX.value; },
-    onActive: (e, ctx) => {
+    onActive: (e) => {
       if (Math.abs(e.translationY) > Math.abs(e.translationX) * 1.5) return;
       coverTranslateX.value = e.translationX * 0.4;
     },
@@ -213,24 +242,6 @@ export default function Player() {
     onCancel: () => { coverTranslateX.value = withSpring(0, { damping: 20 }); },
   });
 
-  const onNext = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const ni = usePlayer.getState().nextTrack();
-    usePlayer.getState().setIndex(ni);
-  }, []);
-
-  const onPrev = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (progress > 3) { seekTo(0); return; }
-    const pi = usePlayer.getState().prevTrack();
-    usePlayer.getState().setIndex(pi);
-  }, [progress]);
-
-  const onCopyTitle = useCallback(() => {
-    Clipboard.setStringAsync(`${track?.artist} — ${track?.title}`);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [track]);
-
   if (!track) return null;
 
   // cover is already declared above via dynColor
@@ -243,12 +254,16 @@ export default function Player() {
       <StatusBar barStyle="light-content" />
 
       {/* Blurred background */}
-      <Image
-        source={cover ? { uri: cover } : require('../assets/placeholder.png')}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        blurRadius={80}
-      />
+      {cover ? (
+        <Image
+          source={{ uri: cover }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          blurRadius={80}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0a0a1a' }]} />
+      )}
       {/* Dynamic color background overlay */}
       <View style={[StyleSheet.absoluteFill, s.bgDim]} />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: dynColor, opacity: 0.35 }]} />
