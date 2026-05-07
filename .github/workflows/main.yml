@@ -25,6 +25,32 @@ jobs:
           npm cache clean --force
           npm install --legacy-peer-deps
 
+      - name: Patch react-native-track-player
+        run: |
+          TP="node_modules/react-native-track-player"
+          SRC="$TP/lib/src"
+          CJS="$TP/lib/commonjs"
+          echo "=== Listing package structure ==="
+          ls "$TP/lib/" 2>/dev/null || echo "No lib dir"
+          ls "$CJS/" 2>/dev/null | head -20 || echo "No commonjs dir"
+          mkdir -p "$SRC"
+          # Copy real compiled files from commonjs → src
+          if [ -d "$CJS" ]; then
+            cp -r "$CJS/." "$SRC/"
+            echo "=== Copied commonjs → lib/src ==="
+            ls "$SRC/"
+          else
+            echo "ERROR: lib/commonjs not found — cannot patch"
+            exit 1
+          fi
+          # Verify the critical file exists
+          if [ ! -f "$SRC/trackPlayer.js" ]; then
+            echo "ERROR: trackPlayer.js still missing after patch"
+            ls "$SRC/"
+            exit 1
+          fi
+          echo "PATCH OK: trackPlayer.js exists"
+
       - name: Install CocoaPods
         run: sudo gem install cocoapods --no-document
 
