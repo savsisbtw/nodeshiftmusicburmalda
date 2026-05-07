@@ -17,6 +17,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["app", "components", "constants", "hooks", "services", "store"],
+  "include": ["app", "components", "constants", "hooks", "services", "store", "types"],
   "exclude": ["node_modules", "dist"]
 }

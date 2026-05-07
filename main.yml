@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: NodeShiftMusic iOS Build
 
 on:
   push:
@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-ipa:
+    name: Build Unsigned IPA
     runs-on: macos-latest
 
     steps:
@@ -20,37 +21,65 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods --no-document
 
       - name: Expo prebuild
-        run: npx expo prebuild --platform ios --clean
         env:
           EXPO_NO_DOTENV: 1
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install Pods
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Find workspace & scheme
+        id: xcode
+        run: |
+          WS=$(find ios -name "*.xcworkspace" -maxdepth 2 | head -1)
+          SCHEME=$(basename "$WS" .xcworkspace)
+          echo "workspace=$WS" >> $GITHUB_OUTPUT
+          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+          echo "Workspace: $WS  |  Scheme: $SCHEME"
 
       - name: Build unsigned archive
         run: |
           xcodebuild archive \
-            -workspace "ios/Burmalda Music.xcworkspace" \
-            -scheme "Burmalda Music" \
+            -workspace "${{ steps.xcode.outputs.workspace }}" \
+            -scheme "${{ steps.xcode.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath "$RUNNER_TEMP/burmalda.xcarchive" \
+            -archivePath "$RUNNER_TEMP/NodeShiftMusic.xcarchive" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_BITCODE=NO \
-            | xcpretty || true
+            2>&1 | xcpretty || true
 
       - name: Package IPA
         run: |
+          APPS="$RUNNER_TEMP/NodeShiftMusic.xcarchive/Products/Applications"
           mkdir -p Payload
-          cp -r "$RUNNER_TEMP/burmalda.xcarchive/Products/Applications/"*.app Payload/
-          zip -qr burmalda-unsigned.ipa Payload
+          cp -r "$APPS/"*.app Payload/
+          zip -qr NodeShiftMusic-unsigned.ipa Payload
           rm -rf Payload
+          echo "IPA size: $(du -sh NodeShiftMusic-unsigned.ipa | cut -f1)"
 
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: burmalda-unsigned-ipa
-          path: burmalda-unsigned.ipa
-          retention-days: 30
+          name: NodeShiftMusic-unsigned
+          path: NodeShiftMusic-unsigned.ipa
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "## NodeShiftMusic Build" >> $GITHUB_STEP_SUMMARY
+          echo "Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ -f NodeShiftMusic-unsigned.ipa ]; then
+            echo "IPA: $(du -sh NodeShiftMusic-unsigned.ipa | cut -f1)" >> $GITHUB_STEP_SUMMARY
+            echo "Скачай из раздела Artifacts этого run'а" >> $GITHUB_STEP_SUMMARY
+          fi

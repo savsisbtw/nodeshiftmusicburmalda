@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import Svg, { Path, Circle, Line, Polyline } from 'react-native-svg';
 import { Colors, TAB_BAR_HEIGHT } from '../../constants/theme';
-import { useAuth, usePlayer, useLikes } from '../../store';
+import { useAuth, usePlayer, useLikes, useHidden, usePlaylists } from '../../store';
 import { useAudio } from '../../hooks/useAudio';
 import MiniPlayer from '../../components/MiniPlayer';
 import Player from '../../components/Player';
@@ -13,6 +13,8 @@ export default function TabsLayout() {
   const { user, ready } = useAuth();
   const { expanded }    = usePlayer();
   const { loadLikes }   = useLikes();
+  const { loadHidden }  = useHidden();
+  const { loadPlaylists } = usePlaylists();
   useAudio(); // single audio controller for the whole app
 
   useEffect(() => {
@@ -20,8 +22,32 @@ export default function TabsLayout() {
   }, [user, ready]);
 
   useEffect(() => {
-    if (user) loadLikes();
+    if (user) { loadLikes(); loadHidden(); loadPlaylists(); }
   }, [user]);
+
+  // Handle deep link: burmalda://listen?tid=123&ts=45
+  useEffect(() => {
+    const handleUrl = (event: { url: string }) => {
+      try {
+        const url = new URL(event.url);
+        if (url.pathname === '//listen' || url.host === 'listen') {
+          const tid = Number(url.searchParams.get('tid'));
+          const ts  = Number(url.searchParams.get('ts') ?? '0');
+          if (!tid) return;
+          const { queue } = usePlayer.getState();
+          const trackIdx = queue.findIndex(t => t.id === tid);
+          if (trackIdx >= 0) {
+            usePlayer.getState().setIndex(trackIdx);
+            usePlayer.getState().setExpanded(true);
+            setTimeout(() => { import('../../hooks/useAudio').then(m => m.seekTo(ts)); }, 500);
+          }
+        }
+      } catch {}
+    };
+    const sub = Linking.addEventListener('url', handleUrl);
+    Linking.getInitialURL().then(url => { if (url) handleUrl({ url }); });
+    return () => sub.remove();
+  }, []);
 
   if (!ready) return (
     <View style={{ flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' }}>

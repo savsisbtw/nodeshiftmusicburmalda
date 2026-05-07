@@ -11,7 +11,7 @@ import { getTracks, getAlbums, Track, Album, coverUrl } from '../../services/api
 import { downloadTrack, deleteTrack, isTrackDownloaded, DownloadProgress, cacheTracksAndAlbums, getCachedTracks, getCachedAlbums, initOfflineStorage } from '../../services/offline';
 import { usePlayer, useLikes, useOffline } from '../../store';
 import CoverImage from '../../components/CoverImage';
-import DownloadButton from '../../components/DownloadButton';
+import TrackDownloadButton from '../../components/DownloadButton';
 
 const { width } = Dimensions.get('window');
 const CARD_W    = (width - Spacing.md * 3) / 2;
@@ -196,35 +196,9 @@ function TrackRow({ track, index, liked, onPress, onLike }: {
   track: Track; index: number; liked: boolean; onPress: () => void; onLike: () => void;
 }) {
   const { queue, index: qi } = usePlayer();
-  const { downloadedTracks, downloading, addDownloadedTrack, removeDownloadedTrack, setDownloading } = useOffline();
-  const [isDownloaded, setIsDownloaded] = useState(false);
   const active = queue[qi]?.id === track.id;
   const cover  = coverUrl(track.cover_url);
-  const downloadProgress = downloading.get(track.id) || 0;
-
-  useEffect(() => {
-    setIsDownloaded(downloadedTracks.has(track.id));
-  }, [downloadedTracks, track.id]);
-
-  const handleDownload = async () => {
-    if (isDownloaded) {
-      await deleteTrack(track.id);
-      removeDownloadedTrack(track.id);
-      setIsDownloaded(false);
-    } else {
-      try {
-        const success = await downloadTrack(track, (prog) => {
-          setDownloading(track.id, prog.progress);
-        });
-        if (success) {
-          addDownloadedTrack(track.id);
-          setIsDownloaded(true);
-        }
-      } catch (err) {
-        console.warn('Download failed:', err);
-      }
-    }
-  };
+  const ext    = (track.filename?.split('.').pop() || 'MP3').toUpperCase();
 
   return (
     <Pressable onPress={onPress} style={[styles.trackRow, active && styles.trackRowActive]}>
@@ -232,21 +206,17 @@ function TrackRow({ track, index, liked, onPress, onLike }: {
       <CoverImage uri={cover} title={track.title} size={44} radius={Radius.sm} />
       <View style={styles.trackInfo}>
         <Text style={[styles.trackTitle, active && { color: Colors.accent }]} numberOfLines={1}>{track.title}</Text>
-        <Text style={styles.trackArtist} numberOfLines={1}>{track.artist}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+          <Text style={styles.trackArtist} numberOfLines={1}>{track.artist}</Text>
+          <View style={styles.extBadge}><Text style={styles.extText}>{ext}</Text></View>
+        </View>
       </View>
       <Pressable onPress={onLike} hitSlop={12}>
         <Svg width={16} height={16} viewBox="0 0 24 24" fill={liked ? Colors.pink : 'none'}>
           <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke={liked ? Colors.pink : Colors.text3} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       </Pressable>
-      <DownloadButton
-        trackId={track.id}
-        isDownloaded={isDownloaded}
-        downloadProgress={downloadProgress}
-        onDownload={handleDownload}
-        onDelete={handleDownload}
-        size="sm"
-      />
+      <TrackDownloadButton track={track} size={18} />
       <Text style={styles.trackDur}>{fmt(track.duration)}</Text>
     </Pressable>
   );
@@ -276,6 +246,8 @@ const styles = StyleSheet.create({
   trackTitle:     { color: Colors.text, fontSize: Font.md, fontWeight: '600' },
   trackArtist:    { color: Colors.text2, fontSize: Font.sm, marginTop: 2 },
   trackDur:       { color: Colors.text3, fontSize: Font.xs, width: 36, textAlign: 'right' },
+  extBadge:       { backgroundColor: 'rgba(255,255,255,0.07)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  extText:        { color: Colors.text3, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
   // Now playing strip
   npStrip:        { borderRadius: Radius.lg, overflow: 'hidden', marginBottom: Spacing.xl, height: 80 },
   npDim:          { backgroundColor: 'rgba(0,0,0,0.5)' },

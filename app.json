@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Burmalda Music",
-    "slug": "burmalda-music",
+    "name": "NodeShiftMusic",
+    "slug": "nodeshiftmusic",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "space.nodeshift.burmalda",
+      "bundleIdentifier": "com.nodeshiftmusic",
       "buildNumber": "1",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],

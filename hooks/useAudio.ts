@@ -16,7 +16,14 @@ async function ensureSetup() {
   if (_setupDone) return;
   _setupDone = true;
   try {
-    await TrackPlayer.setupPlayer({ minBuffer: 15, maxBuffer: 50, playBuffer: 2.5 });
+    await TrackPlayer.setupPlayer({
+      minBuffer: 15,
+      maxBuffer: 50,
+      playBuffer: 2.5,
+      // iOS: show full artwork on lock screen
+      iosCategory: 'playback' as any,
+      iosCategoryMode: 'default' as any,
+    });
     await TrackPlayer.updateOptions({
       android: {
         appKilledPlaybackBehavior:
@@ -28,11 +35,23 @@ async function ensureSetup() {
         Capability.SkipToNext,
         Capability.SkipToPrevious,
         Capability.SeekTo,
+        Capability.Stop,
       ],
-      compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext],
+      compactCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SkipToNext,
+      ],
+      // iOS lock screen: larger artwork
+      notificationCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+        Capability.SeekTo,
+      ],
     });
   } catch (e: any) {
-    // Player already set up on hot reload — update options only
     if (e?.message?.toLowerCase().includes('already')) {
       _setupDone = true;
       return;
@@ -42,8 +61,6 @@ async function ensureSetup() {
   }
 }
 
-// Load a track and start playing. Mutex prevents double-load on the same ID.
-// Uses local file if downloaded, otherwise streams from CDN
 export async function loadAndPlay(track: Track) {
   if (_lastLoadedId === track.id) return;
   _lastLoadedId = track.id;
@@ -55,8 +72,10 @@ export async function loadAndPlay(track: Track) {
       url:      url || (track.cdn_url2 || track.cdn_url),
       title:    track.title,
       artist:   track.artist,
+      // Pass artwork — TrackPlayer shows it on iOS lock screen & Now Playing
       artwork:  coverUrl(track.cover_url) ?? undefined,
       duration: track.duration,
+      album:    track.album ?? undefined,
     });
     await TrackPlayer.play();
   } catch (e) {
