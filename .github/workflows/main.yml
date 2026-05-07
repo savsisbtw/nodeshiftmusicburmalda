@@ -21,24 +21,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm cache clean --force
-          npm install --legacy-peer-deps
-
-      - name: Patch react-native-track-player
-        run: node scripts/patch-track-player.js
-
-      - name: Verify patch
-        run: |
-          FILE="node_modules/react-native-track-player/lib/src/trackPlayer.js"
-          if [ -f "$FILE" ]; then
-            echo "PATCH OK: $(wc -c < $FILE) bytes"
-            head -2 "$FILE"
-          else
-            echo "ERROR: patch-track-player.js did not create the file"
-            ls node_modules/react-native-track-player/lib/ || true
-            exit 1
-          fi
+        run: npm install --legacy-peer-deps
 
       - name: Expo prebuild
         env:
