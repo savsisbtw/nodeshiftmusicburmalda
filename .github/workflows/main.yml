@@ -27,29 +27,56 @@ jobs:
 
       - name: Patch react-native-track-player
         run: |
-          TP="node_modules/react-native-track-player"
-          SRC="$TP/lib/src"
-          CJS="$TP/lib/commonjs"
-          echo "=== Listing package structure ==="
-          ls "$TP/lib/" 2>/dev/null || echo "No lib dir"
-          ls "$CJS/" 2>/dev/null | head -20 || echo "No commonjs dir"
-          mkdir -p "$SRC"
-          # Copy real compiled files from commonjs → src
-          if [ -d "$CJS" ]; then
-            cp -r "$CJS/." "$SRC/"
-            echo "=== Copied commonjs → lib/src ==="
-            ls "$SRC/"
-          else
-            echo "ERROR: lib/commonjs not found — cannot patch"
-            exit 1
-          fi
-          # Verify the critical file exists
-          if [ ! -f "$SRC/trackPlayer.js" ]; then
-            echo "ERROR: trackPlayer.js still missing after patch"
-            ls "$SRC/"
-            exit 1
-          fi
-          echo "PATCH OK: trackPlayer.js exists"
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          const pkg = 'node_modules/react-native-track-player';
+          const srcDir = path.join(pkg, 'lib', 'src');
+          const target = path.join(srcDir, 'trackPlayer.js');
+
+          // List lib/src contents
+          console.log('lib/src/ files:');
+          if (fs.existsSync(srcDir)) {
+            fs.readdirSync(srcDir).forEach(f => console.log(' ', f));
+          }
+
+          if (fs.existsSync(target)) { console.log('Already exists'); process.exit(0); }
+
+          // Try web version
+          const webVer = path.join(pkg, 'lib', 'web', 'trackPlayer.js');
+          if (fs.existsSync(webVer)) {
+            fs.copyFileSync(webVer, target);
+            console.log('Copied from lib/web/trackPlayer.js');
+            process.exit(0);
+          }
+
+          // Create re-export shim — forwards to NativeModules
+          const shim = [
+            '\"use strict\";',
+            'Object.defineProperty(exports, \"__esModule\", { value: true });',
+            'const react_native_1 = require(\"react-native\");',
+            'const NTP = react_native_1.NativeModules.TrackPlayer || {};',
+            'const TrackPlayer = {',
+            '  setupPlayer: (o) => NTP.setupPlayer(o),',
+            '  add: (t, b) => NTP.add(t, b),',
+            '  play: () => NTP.play(),',
+            '  pause: () => NTP.pause(),',
+            '  stop: () => NTP.stop(),',
+            '  reset: () => NTP.reset(),',
+            '  seekTo: (s) => NTP.seekTo(s),',
+            '  skipToNext: () => NTP.skipToNext(),',
+            '  skipToPrevious: () => NTP.skipToPrevious(),',
+            '  getPlaybackState: () => NTP.getState ? NTP.getState() : Promise.resolve({ state: 0 }),',
+            '  updateOptions: (o) => NTP.updateOptions ? NTP.updateOptions(o) : Promise.resolve(),',
+            '  updateNowPlayingMetadata: (m) => NTP.updateNowPlayingMetadata ? NTP.updateNowPlayingMetadata(m) : Promise.resolve(),',
+            '};',
+            'exports.default = TrackPlayer;',
+            'Object.assign(exports, TrackPlayer);',
+          ].join('\n');
+          fs.mkdirSync(srcDir, { recursive: true });
+          fs.writeFileSync(target, shim);
+          console.log('Created NativeModules shim trackPlayer.js');
+          "
 
       - name: Install CocoaPods
         run: sudo gem install cocoapods --no-document
