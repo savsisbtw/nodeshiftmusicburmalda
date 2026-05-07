@@ -32,21 +32,12 @@ jobs:
         run: |
           FILE="node_modules/react-native-track-player/lib/src/trackPlayer.js"
           if [ -f "$FILE" ]; then
-            echo "PATCH OK — trackPlayer.js exists ($(wc -c < $FILE) bytes)"
-            head -3 "$FILE"
+            echo "PATCH OK: $(wc -c < $FILE) bytes"
+            head -2 "$FILE"
           else
-            echo "PATCH FAILED — creating file directly now"
-            mkdir -p "$(dirname $FILE)"
-            cat > "$FILE" << 'SHIMEOF'
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const { NativeModules } = require("react-native");
-const NTP = NativeModules.TrackPlayer || {};
-const T = { setupPlayer:(o)=>NTP.setupPlayer?.(o)??Promise.resolve(), add:(t,b)=>NTP.add?.(t,b)??Promise.resolve(), play:()=>NTP.play?.()??Promise.resolve(), pause:()=>NTP.pause?.()??Promise.resolve(), stop:()=>NTP.stop?.()??Promise.resolve(), reset:()=>NTP.reset?.()??Promise.resolve(), seekTo:(s)=>NTP.seekTo?.(s)??Promise.resolve(), skipToNext:()=>NTP.skipToNext?.()??Promise.resolve(), skipToPrevious:()=>NTP.skipToPrevious?.()??Promise.resolve(), getPlaybackState:()=>NTP.getState?.()??Promise.resolve({state:0}), updateOptions:(o)=>NTP.updateOptions?.(o)??Promise.resolve(), getQueue:()=>NTP.getQueue?.()??Promise.resolve([]), getCurrentTrack:()=>NTP.getCurrentTrack?.()??Promise.resolve(null), getProgress:()=>NTP.getProgress?.()??Promise.resolve({position:0,duration:0,buffered:0}), setVolume:(v)=>NTP.setVolume?.(v)??Promise.resolve(), getVolume:()=>NTP.getVolume?.()??Promise.resolve(1), setRate:(r)=>NTP.setRate?.(r)??Promise.resolve(), getRate:()=>NTP.getRate?.()??Promise.resolve(1), updateNowPlayingMetadata:(m)=>NTP.updateNowPlayingMetadata?.(m)??Promise.resolve() };
-exports.default = T;
-module.exports = Object.assign(exports, T);
-SHIMEOF
-            echo "Created fallback trackPlayer.js"
+            echo "ERROR: patch-track-player.js did not create the file"
+            ls node_modules/react-native-track-player/lib/ || true
+            exit 1
           fi
 
       - name: Expo prebuild
