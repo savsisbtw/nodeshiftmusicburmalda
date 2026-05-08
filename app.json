@@ -2,7 +2,7 @@
   "expo": {
     "name": "NodeShiftMusic",
     "slug": "nodeshiftmusic",
-    "version": "1.0.0",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nodeshiftmusic",
-      "buildNumber": "1",
+      "buildNumber": "7",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
         "NSMicrophoneUsageDescription": "Не используется",
@@ -29,21 +29,10 @@
     },
     "scheme": "burmalda",
     "plugins": [
-      "expo-router",
-      [
-        "expo-updates",
-        {
-          "username": "nodeshift"
-        }
-      ]
+      "expo-router"
     ],
     "updates": {
-      "enabled": true,
-      "checkAutomatically": "ON_LOAD",
-      "url": "https://nodeshift.space/api/ios/updates"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
+      "enabled": false
     },
     "extra": {
       "apiBase": "https://music.nodeshift.space",

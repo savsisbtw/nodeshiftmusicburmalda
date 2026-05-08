@@ -84,7 +84,7 @@ export default function ProfileScreen() {
       </Animated.View>
 
       <Animated.Text entering={FadeInDown.delay(300)} style={styles.version}>
-        Burmalda Music · v1.0.0 · by NodeShift
+        Burmalda Music · v1.0.7 BETA · by NodeShift
       </Animated.Text>
     </ScrollView>
   );

@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import * as Updates from 'expo-updates';
 import { useBootAuth } from '../hooks/useAuth';
 import { Colors } from '../constants/theme';
 
@@ -16,7 +15,6 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" options={{ presentation: 'fullScreenModal' }} />
-        <Stack.Screen name="auth/callback" options={{ presentation: 'fullScreenModal' }} />
       </Stack>
     </GestureHandlerRootView>
   );
@@ -25,16 +23,17 @@ export default function RootLayout() {
 function useOTAUpdates() {
   useEffect(() => {
     if (__DEV__) return;
+    // Lazy import so expo-updates crash doesn't kill the app
     (async () => {
       try {
+        const Updates = await import('expo-updates');
         const check = await Updates.checkForUpdateAsync();
         if (check.isAvailable) {
           await Updates.fetchUpdateAsync();
           await Updates.reloadAsync();
         }
-        // eslint-disable-next-line no-empty
       } catch {
-        // silent fail
+        // Silently ignore — OTA is optional
       }
     })();
   }, []);
