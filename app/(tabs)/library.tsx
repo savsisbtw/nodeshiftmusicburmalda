@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, Pressable, Alert, TextInput, Modal,
   ActionSheetIOS, Platform,
 } from 'react-native';
-import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withRepeat } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
@@ -14,8 +14,6 @@ import { usePlayer, useLikes, useHidden, usePlaylists, Playlist } from '../../st
 import { getMyWaveTracks } from '../../services/mywave';
 import WaveAnimation from '../../components/WaveAnimation';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
 
 type Tab = 'tracks' | 'playlists' | 'wave';
 
@@ -208,7 +206,7 @@ export default function LibraryScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <Animated.View entering={FadeInDown.duration(400)} style={s.waveHeader}>
-              <AnimatedGradient
+              <LinearGradient
                 colors={['rgba(67, 97, 238, 0.2)', 'rgba(123, 47, 247, 0.05)', 'transparent']}
                 style={StyleSheet.absoluteFill}
               />
