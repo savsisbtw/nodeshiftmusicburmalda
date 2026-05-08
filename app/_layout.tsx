@@ -5,21 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useBootAuth } from '../hooks/useAuth';
 import { Colors } from '../constants/theme';
 
-export default function RootLayout() {
-  useBootAuth();
-  useOTAUpdates();
-
-  return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.bg }}>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="auth" options={{ presentation: 'fullScreenModal' }} />
-      </Stack>
-    </GestureHandlerRootView>
-  );
-}
-
+// Must be defined before use — hooks are not hoisted
 function useOTAUpdates() {
   useEffect(() => {
     if (__DEV__) return;
@@ -37,4 +23,19 @@ function useOTAUpdates() {
       }
     })();
   }, []);
+}
+
+export default function RootLayout() {
+  useBootAuth();
+  useOTAUpdates();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.bg }}>
+      <StatusBar style="light" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="auth" options={{ presentation: 'fullScreenModal' }} />
+      </Stack>
+    </GestureHandlerRootView>
+  );
 }

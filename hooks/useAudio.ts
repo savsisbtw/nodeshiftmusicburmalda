@@ -14,15 +14,11 @@ let _lastLoadedId: number | null = null;
 
 async function ensureSetup() {
   if (_setupDone) return;
-  _setupDone = true;
   try {
     await TrackPlayer.setupPlayer({
       minBuffer: 15,
       maxBuffer: 50,
       playBuffer: 2.5,
-      // iOS: show full artwork on lock screen
-      iosCategory: 'playback' as any,
-      iosCategoryMode: 'default' as any,
     });
     await TrackPlayer.updateOptions({
       android: {
@@ -42,7 +38,6 @@ async function ensureSetup() {
         Capability.Pause,
         Capability.SkipToNext,
       ],
-      // iOS lock screen: larger artwork
       notificationCapabilities: [
         Capability.Play,
         Capability.Pause,
@@ -51,12 +46,14 @@ async function ensureSetup() {
         Capability.SeekTo,
       ],
     });
+    _setupDone = true;
   } catch (e: any) {
+    // "already" means player was set up before (e.g. hot reload)
     if (e?.message?.toLowerCase().includes('already')) {
       _setupDone = true;
       return;
     }
-    _setupDone = false;
+    // Other errors — allow retry next call
     throw e;
   }
 }

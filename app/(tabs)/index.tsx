@@ -60,9 +60,9 @@ export default function HomeScreen() {
     load();
   }, []);
 
-  useFocusEffect(() => {
+  useFocusEffect(useCallback(() => {
     loadDownloadedTracks();
-  });
+  }, [loadDownloadedTracks]));
 
   const onRefresh = async () => {
     setRefresh(true);
