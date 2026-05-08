@@ -30,18 +30,16 @@ const DISMISS_THRESHOLD = 120;
 const DISMISS_VELOCITY = 800;
 
 export default function Player() {
-  const {
-    queue, index, playing, progress, duration,
-    repeat, shuffle, setExpanded, cycleRepeat, toggleShuffle,
-  } = usePlayer();
+  const { queue, index, expanded, setExpanded, progress, duration, playing, repeat, shuffle, setIndex, cycleRepeat, toggleShuffle } = usePlayer();
   const { toggleLike, isLiked } = useLikes();
   const insets = useSafeAreaInsets();
   const track = queue[index];
 
-  const [lyricsMode, setLyricsMode] = useState(false);
-  const [lrcLines, setLrcLines] = useState<LrcLine[]>([]);
-  const [plainLyrics, setPlain] = useState<string | null>(null);
+  const [lyricsMode, setLyricsMode]   = useState(false);
+  const [lrcLines, setLrcLines]       = useState<LrcLine[]>([]);
+  const [plainLyrics, setPlainLyrics] = useState('');
   const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [immersionMode, setImmersionMode] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const lyricsScrollRef = useRef<ScrollView>(null);
@@ -95,7 +93,7 @@ export default function Player() {
 
   // Reset on track change
   useEffect(() => {
-    setLrcLines([]); setPlain(null); setLyricsMode(false);
+    setLrcLines([]); setPlainLyrics(''); setLyricsMode(false);
     translateY.value = 0;
     coverScale.value = withSpring(1, { damping: 18, stiffness: 120 });
   }, [track?.id]);
@@ -118,7 +116,7 @@ export default function Player() {
     try {
       const data = await fetchLyrics(track.id);
       if (data?.synced) setLrcLines(parseLrc(data.synced));
-      else if (data?.plain) setPlain(data.plain);
+      else if (data?.plain) setPlainLyrics(data.plain);
     } catch {}
     setLyricsLoading(false);
     setLyricsMode(true);
@@ -468,13 +466,16 @@ export default function Player() {
 
             <IconBtn scale={0.92} onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('VST Эффекты', 'Плагины для обработки звука будут добавлены в следующем обновлении.');
+              setImmersionMode(!immersionMode);
+              if (!immersionMode) {
+                Alert.alert('Погружение включено', 'Для применения аудио-фильтров (звук из соседней комнаты / 8D) потребуется нативный звуковой движок. Сейчас режим погружения активирует визуальный фокус.');
+              }
             }}>
-              <View style={s.lyrBtn}>
+              <View style={[s.lyrBtn, immersionMode && s.lyrBtnActive]}>
                 <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-                  <Path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M12 15v6" stroke="rgba(255,255,255,0.5)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d="M12 2v20M17 5v14M7 9v6M22 10v4M2 11v2" stroke={immersionMode ? Colors.accent : 'rgba(255,255,255,0.5)'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={s.lyrBtnText}>VST / Звук</Text>
+                <Text style={[s.lyrBtnText, immersionMode && { color: Colors.accent }]}>Погружение</Text>
               </View>
             </IconBtn>
           </View>

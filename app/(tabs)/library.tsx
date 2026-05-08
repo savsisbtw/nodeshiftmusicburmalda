@@ -12,6 +12,7 @@ import { Colors, Font, Spacing, Radius, TAB_BAR_HEIGHT, MINI_PLAYER_HEIGHT } fro
 import { getTracks, Track, coverUrl } from '../../services/api';
 import { usePlayer, useLikes, useHidden, usePlaylists, Playlist } from '../../store';
 import { getMyWaveTracks } from '../../services/mywave';
+import TrackDownloadButton from '../../components/DownloadButton';
 import WaveAnimation from '../../components/WaveAnimation';
 import { LinearGradient } from 'expo-linear-gradient';
 
