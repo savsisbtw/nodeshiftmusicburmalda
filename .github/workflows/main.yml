@@ -25,40 +25,14 @@ jobs:
 
       - name: Patch Track Player
         run: |
-          # 1. Create missing trackPlayer.js so original plugin import doesn't crash
           node scripts/patch-track-player.js
-
-          # 2. Also rewrite app.plugin.js to pure CommonJS as safety fallback
-          PLUGIN_PATH="node_modules/react-native-track-player/app.plugin.js"
-          cat << 'EOF' > "$PLUGIN_PATH"
-const { withInfoPlist } = require('@expo/config-plugins');
-module.exports = function(config) {
-  return withInfoPlist(config, (config) => {
-    if (!config.modResults.UIBackgroundModes) {
-      config.modResults.UIBackgroundModes = [];
-    }
-    if (!config.modResults.UIBackgroundModes.includes('audio')) {
-      config.modResults.UIBackgroundModes.push('audio');
-    }
-    return config;
-  });
-};
-EOF
-          echo "Track player patched OK"
-
-          # 3. Add plugin back to app.json so AppDelegate gets audio mode set
+          node scripts/fix-track-player-plugin.js
           node -e "
-          const fs = require('fs');
-          const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-          const plugins = cfg.expo.plugins || [];
-          if (!plugins.includes('react-native-track-player')) {
-            plugins.unshift('react-native-track-player');
-            cfg.expo.plugins = plugins;
-            fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
-            console.log('Added plugin to app.json');
-          } else {
-            console.log('Plugin already in app.json');
-          }
+            var fs=require('fs');
+            var cfg=JSON.parse(fs.readFileSync('app.json','utf8'));
+            var p=cfg.expo.plugins||[];
+            if(!p.includes('react-native-track-player')){p.unshift('react-native-track-player');cfg.expo.plugins=p;fs.writeFileSync('app.json',JSON.stringify(cfg,null,2));}
+            console.log('app.json plugins:',cfg.expo.plugins);
           "
 
       - name: Fix PNG assets
