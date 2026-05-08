@@ -138,10 +138,13 @@ export default function Player() {
     },
     onActive: (e, ctx) => {
       const dy = e.translationY;
-      if (dy <= 0) return;
-      // Rubber band resistance
-      const resistance = 1 - Math.min(dy / (height * 0.9), 0.85);
-      translateY.value = ctx.start + dy * resistance;
+      if (dy <= 0) {
+        // slight resistance when pulling up
+        translateY.value = ctx.start + dy * 0.2;
+        return;
+      }
+      // 1:1 tracking for smooth dismissal
+      translateY.value = ctx.start + dy;
     },
     onEnd: (e) => {
       const shouldDismiss =
@@ -218,24 +221,29 @@ export default function Player() {
     onStart: (_, ctx) => { ctx.startX = coverTranslateX.value; },
     onActive: (e) => {
       if (Math.abs(e.translationY) > Math.abs(e.translationX) * 1.5) return;
-      coverTranslateX.value = e.translationX * 0.4;
+      // 1:1 tracking for smooth feeling, scale down slightly
+      coverTranslateX.value = e.translationX * 0.9;
+      coverScale.value = interpolate(Math.abs(e.translationX), [0, width], [1, 0.85], Extrapolate.CLAMP);
     },
     onEnd: (e) => {
-      const THRESH = 60;
+      const THRESH = 90; // slightly higher threshold to prevent accidental skips
       if (e.translationX < -THRESH) {
-        coverTranslateX.value = withTiming(-width, { duration: 220 }, () => {
+        coverTranslateX.value = withTiming(-width, { duration: 250, easing: Easing.out(Easing.cubic) }, () => {
           runOnJS(onNext)();
           coverTranslateX.value = width;
-          coverTranslateX.value = withSpring(0, { damping: 20, stiffness: 180 });
+          coverTranslateX.value = withSpring(0, { damping: 22, stiffness: 180 });
+          coverScale.value = withSpring(1);
         });
       } else if (e.translationX > THRESH) {
-        coverTranslateX.value = withTiming(width, { duration: 220 }, () => {
+        coverTranslateX.value = withTiming(width, { duration: 250, easing: Easing.out(Easing.cubic) }, () => {
           runOnJS(onPrev)();
           coverTranslateX.value = -width;
-          coverTranslateX.value = withSpring(0, { damping: 20, stiffness: 180 });
+          coverTranslateX.value = withSpring(0, { damping: 22, stiffness: 180 });
+          coverScale.value = withSpring(1);
         });
       } else {
         coverTranslateX.value = withSpring(0, { damping: 20, stiffness: 220 });
+        coverScale.value = withSpring(1);
       }
     },
     onFail: () => { coverTranslateX.value = withSpring(0, { damping: 20 }); },
@@ -447,17 +455,28 @@ export default function Player() {
 
           {/* Bottom row */}
           <View style={s.bottomRow}>
-            <Pressable
-              style={[s.lyrBtn, !!(lyricsMode || lrcLines.length > 0 || plainLyrics) && s.lyrBtnActive]}
-              onPress={loadLyrics}
-            >
-              <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-                <Path d="M3 8h18M3 12h18M3 16h12" stroke={lyricsMode ? Colors.accent : 'rgba(255,255,255,0.5)'} strokeWidth={2} strokeLinecap="round" />
-              </Svg>
-              <Text style={[s.lyrBtnText, lyricsMode && { color: Colors.accent }]}>
-                {lyricsLoading ? 'Загрузка...' : 'Текст песни'}
-              </Text>
-            </Pressable>
+            <IconBtn scale={0.92} onPress={loadLyrics}>
+              <View style={[s.lyrBtn, !!(lyricsMode || lrcLines.length > 0 || plainLyrics) && s.lyrBtnActive]}>
+                <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                  <Path d="M3 8h18M3 12h18M3 16h12" stroke={lyricsMode ? Colors.accent : 'rgba(255,255,255,0.5)'} strokeWidth={2} strokeLinecap="round" />
+                </Svg>
+                <Text style={[s.lyrBtnText, lyricsMode && { color: Colors.accent }]}>
+                  {lyricsLoading ? 'Загрузка...' : 'Текст'}
+                </Text>
+              </View>
+            </IconBtn>
+
+            <IconBtn scale={0.92} onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              Alert.alert('VST Эффекты', 'Плагины для обработки звука будут добавлены в следующем обновлении.');
+            }}>
+              <View style={s.lyrBtn}>
+                <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                  <Path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M12 15v6" stroke="rgba(255,255,255,0.5)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={s.lyrBtnText}>VST / Звук</Text>
+              </View>
+            </IconBtn>
           </View>
 
         </Animated.View>
@@ -600,14 +619,14 @@ const s = StyleSheet.create({
     backgroundColor: Colors.text, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16,
   },
-  bottomRow:      { flexDirection: 'row', justifyContent: 'center', marginTop: 4 },
+  bottomRow:      { flexDirection: 'row', justifyContent: 'center', marginTop: 8, gap: 12 },
   lyrBtn:         {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 18, paddingVertical: 10,
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 20, paddingVertical: 12,
+    borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
   lyrBtnActive:   { borderColor: `${Colors.accent}50`, backgroundColor: `${Colors.accent}18` },
-  lyrBtnText:     { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '600' },
+  lyrBtnText:     { color: 'rgba(255,255,255,0.55)', fontSize: 14, fontWeight: '600' },
   repBadge:       {
     position: 'absolute', top: -3, right: -5, width: 11, height: 11,
     borderRadius: 6, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center',

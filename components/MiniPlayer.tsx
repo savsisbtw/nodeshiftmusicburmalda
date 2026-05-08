@@ -37,10 +37,12 @@ export default function MiniPlayer() {
       ctx.start = translateY.value;
     },
     onActive: (e) => {
-      if (e.translationY > 0) return; // block downward
-      const dy = Math.max(e.translationY, -100);
-      translateY.value = dy;
-      opacity.value = interpolate(dy, [-100, 0], [0.6, 1], Extrapolate.CLAMP);
+      let dy = e.translationY;
+      if (dy > 0) {
+        dy = dy * 0.15; // rubber band resistance when dragging down
+      }
+      translateY.value = Math.max(dy, -150);
+      opacity.value = interpolate(dy, [-100, 0], [0.5, 1], Extrapolate.CLAMP);
     },
     onEnd: (e) => {
       const shouldOpen = e.translationY < -40 || e.velocityY < -600;

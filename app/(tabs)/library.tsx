@@ -12,8 +12,10 @@ import { Colors, Font, Spacing, Radius, TAB_BAR_HEIGHT, MINI_PLAYER_HEIGHT } fro
 import { getTracks, Track, coverUrl } from '../../services/api';
 import { usePlayer, useLikes, useHidden, usePlaylists, Playlist } from '../../store';
 import { getMyWaveTracks } from '../../services/mywave';
-import TrackDownloadButton from '../../components/DownloadButton';
 import WaveAnimation from '../../components/WaveAnimation';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
 
 type Tab = 'tracks' | 'playlists' | 'wave';
 
@@ -205,31 +207,26 @@ export default function LibraryScreen() {
           contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: TAB_BAR_HEIGHT + MINI_PLAYER_HEIGHT + 24 }}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <View style={s.waveHeader}>
-              {/* Animated wave */}
+            <Animated.View entering={FadeInDown.duration(400)} style={s.waveHeader}>
+              <AnimatedGradient
+                colors={['rgba(67, 97, 238, 0.2)', 'rgba(123, 47, 247, 0.05)', 'transparent']}
+                style={StyleSheet.absoluteFill}
+              />
               <View style={s.waveViz}>
-                <WaveAnimation active={!waveLoading} barCount={50} height={64} />
+                <WaveAnimation active={!waveLoading} barCount={60} height={80} />
               </View>
               <View style={s.waveGradientOverlay} pointerEvents="none" />
               <Text style={s.waveTitle}>Моя волна</Text>
               <Text style={s.waveSub}>
-                {waveLoading ? 'DeepSeek подбирает треки...' : `${wave.length} треков на основе ваших лайков`}
+                {waveLoading ? 'DeepSeek подбирает идеальные треки...' : `${wave.length} треков на основе вашего вкуса`}
               </Text>
               {wave.length > 0 && (
-                <Pressable
-                  style={s.playAllBtn}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    playTrack(wave, 0);
-                  }}
-                >
-                  <Svg width={16} height={16} viewBox="0 0 24 24" fill={Colors.bg}>
-                    <Path d="M8 5v14l11-7z" />
-                  </Svg>
-                  <Text style={s.playAllText}>Слушать волну</Text>
-                </Pressable>
+                <PulsePlayButton onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  playTrack(wave, 0);
+                }} />
               )}
-            </View>
+            </Animated.View>
           }
           ListEmptyComponent={
             waveLoading
@@ -284,6 +281,35 @@ export default function LibraryScreen() {
         </View>
       </Modal>
     </View>
+  );
+}
+
+function PulsePlayButton({ onPress }: { onPress: () => void }) {
+  const scale = useSharedValue(1);
+  const glow = useSharedValue(0.4);
+
+  useEffect(() => {
+    glow.value = withRepeat(withSpring(0.8, { damping: 2 }), -1, true);
+  }, []);
+
+  const st = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const gl = useAnimatedStyle(() => ({ opacity: glow.value }));
+
+  return (
+    <Animated.View style={st}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.accent, borderRadius: 30, transform: [{ scale: 1.1 }] }, gl]} />
+      <Pressable
+        onPressIn={() => { scale.value = withSpring(0.92, { damping: 15 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 15 }); }}
+        onPress={onPress}
+        style={s.playAllBtn}
+      >
+        <Svg width={18} height={18} viewBox="0 0 24 24" fill="#fff">
+          <Path d="M8 5v14l11-7z" />
+        </Svg>
+        <Text style={s.playAllText}>Слушать поток</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -403,13 +429,13 @@ const s = StyleSheet.create({
   plCoverFallback: { width: 52, height: 52, backgroundColor: Colors.elevated, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   plName:       { color: Colors.text, fontSize: Font.md, fontWeight: '600' },
   plCount:      { color: Colors.text2, fontSize: Font.sm, marginTop: 2 },
-  waveHeader:        { paddingBottom: 20, alignItems: 'center', overflow: 'hidden', borderRadius: 20, marginBottom: 8, backgroundColor: Colors.surface },
-  waveViz:           { width: '100%', height: 80, overflow: 'hidden', marginBottom: 0 },
-  waveGradientOverlay: { position: 'absolute', top: 0, left: 0, right: 0, height: 80, backgroundColor: 'transparent' },
-  waveTitle:         { color: Colors.text, fontSize: Font.xl, fontWeight: '800', letterSpacing: -0.3, marginTop: 16 },
-  waveSub:           { color: Colors.text2, fontSize: Font.sm, marginTop: 4, marginBottom: 16 },
-  playAllBtn:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.accent, paddingHorizontal: 28, paddingVertical: 13, borderRadius: Radius.full },
-  playAllText:       { color: Colors.bg, fontSize: Font.md, fontWeight: '700' },
+  waveHeader:        { paddingBottom: 24, paddingTop: 12, alignItems: 'center', overflow: 'hidden', borderRadius: 24, marginBottom: 12, backgroundColor: Colors.surface, borderWidth: 1, borderColor: 'rgba(255,255,255,0.03)' },
+  waveViz:           { width: '100%', height: 90, overflow: 'hidden', marginBottom: 0 },
+  waveGradientOverlay: { position: 'absolute', top: 0, left: 0, right: 0, height: 90, backgroundColor: 'transparent' },
+  waveTitle:         { color: Colors.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.5, marginTop: 16 },
+  waveSub:           { color: 'rgba(255,255,255,0.5)', fontSize: Font.sm, marginTop: 4, marginBottom: 20 },
+  playAllBtn:        { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.accent, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 30 },
+  playAllText:       { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
   modalBg:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   modalSheet:   { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
   modalTitle:   { color: Colors.text, fontSize: Font.lg, fontWeight: '700', marginBottom: 16 },
