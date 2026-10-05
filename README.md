@@ -1,7 +1,7 @@
 # Burmalda Music — iOS App
 
 
-[![main](https://github.com/devsavsis/nodeshiftmusicburmalda/actions/workflows/main.yml/badge.svg)](https://github.com/devsavsis/nodeshiftmusicburmalda/actions/workflows/main.yml)
+[![main](https://github.com/savsisbtw/nodeshiftmusicburmalda/actions/workflows/main.yml/badge.svg)](https://github.com/savsisbtw/nodeshiftmusicburmalda/actions/workflows/main.yml)
 React Native + Expo приложение для NodeShift Music.
 
 ## Требования (Windows)
